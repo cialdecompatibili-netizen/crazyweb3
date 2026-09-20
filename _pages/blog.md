@@ -30,60 +30,19 @@ pagination:
   {% endif %}
 
 {% comment %}
-  Barra categorie + tag AUTOMATICA (prima le categorie, poi i tag): legge tutti i post, non serve piu' mantenere
-  display_tags / display_categories in _config.yml. I tag sono ordinati per numero di post e limitati a
-  'blog_max_tags' (default 12) e le categorie a 'blog_max_categories' (default 4), sempre le piu' usate per prime.
-  I link puntano agli archivi di jekyll-archives (/blog/tag/x/, /blog/category/x/), generati per ogni valore.
+  ELENCO CATEGORIE del blog: semplice e automatico. Mostra SEMPRE TUTTE le categorie che esistono nei post
+  (site.categories), in ordine alfabetico, ognuna con il numero di post. Nessun limite, nessun taglio, nessun CSS.
+  Il link va all'archivio di jekyll-archives (/blog/category/nome/).
+  Per aggiungere una categoria basta usarla in un post: compare da sola. I tag NON sono piu' in questa barra
+  (restano sotto ogni post, cliccabili).
 {% endcomment %}
-{% assign max_tags = site.blog_max_tags | default: 12 %}
-{% assign max_cats = site.blog_max_categories | default: 4 %}
-{% comment %} site.categories / site.tags sono mappe nome -> array di post: non si ordinano con "sort".
-  Costruisco stringhe "0007|nome" (conteggio a 4 cifre) e le ordino come testo, poi le rovescio. {% endcomment %}
-{% assign cat_keys = "" | split: "" %}
-{% for c in site.categories %}
-  {% assign n = c[1] | size %}
-  {% assign key = n | prepend: "0000" | slice: -4, 4 | append: "|" | append: c[0] %}
-  {% assign cat_keys = cat_keys | push: key %}
-{% endfor %}
-{% assign cat_list = cat_keys | sort | reverse %}
-{% assign tag_keys = "" | split: "" %}
-{% for t in site.tags %}
-  {% assign n = t[1] | size %}
-  {% assign key = n | prepend: "0000" | slice: -4, 4 | append: "|" | append: t[0] %}
-  {% assign tag_keys = tag_keys | push: key %}
-{% endfor %}
-{% assign tag_list = tag_keys | sort | reverse %}
-
-{% if cat_list.size > 0 or tag_list.size > 0 %}
-
-  <style>
-    /* Barra categorie/tag limitata a 2 righe: il taglio segue la larghezza (su mobile entrano meno voci). */
-    .tag-category-list ul { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; line-height: 1.6em; max-height: 3.2em; overflow: hidden; }
-    .tag-category-list ul li, .tag-category-list ul p { margin: 0; }
-    /* Schermi piccoli: meno voci (restano le piu' usate, l'ordine e' gia' per numero di post) cosi' non si taglia a meta'. */
-    @media (max-width: 768px) {
-      .tag-category-list ul { font-size: .9em; }
-      .tag-category-list ul li:nth-of-type(n+9), .tag-category-list ul li:nth-of-type(n+9) + p { display: none; }
-    }
-  </style>
+{% if site.categories.size > 0 %}
   <div class="tag-category-list">
     <ul class="p-0 m-0">
-      {% for item in cat_list limit: max_cats %}
-        {% assign category = item | split: "|" | slice: 1, 99 | join: "|" %}
+      {% assign cats_sorted = site.categories | sort %}
+      {% for c in cats_sorted %}
         <li>
-          <i class="fa-solid fa-tag fa-sm"></i> <a href="{{ category | slugify | prepend: '/blog/category/' | relative_url }}">{{ category }}</a>
-        </li>
-        {% unless forloop.last %}
-          <p>&bull;</p>
-        {% endunless %}
-      {% endfor %}
-      {% if cat_list.size > 0 and tag_list.size > 0 %}
-        <p>&bull;</p>
-      {% endif %}
-      {% for item in tag_list limit: max_tags %}
-        {% assign tag = item | split: "|" | slice: 1, 99 | join: "|" %}
-        <li>
-          <i class="fa-solid fa-hashtag fa-sm"></i> <a href="{{ tag | slugify | prepend: '/blog/tag/' | relative_url }}">{{ tag }}</a>
+          <i class="fa-solid fa-tag fa-sm"></i> <a href="{{ c[0] | slugify | prepend: '/blog/category/' | relative_url }}">{{ c[0] }}</a> ({{ c[1] | size }})
         </li>
         {% unless forloop.last %}
           <p>&bull;</p>
@@ -91,7 +50,7 @@ pagination:
       {% endfor %}
     </ul>
   </div>
-  {% endif %}
+{% endif %}
 
 {% assign featured_posts = site.posts | where: "featured", "true" %}
 {% if featured_posts.size > 0 %}
