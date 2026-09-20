@@ -20,11 +20,13 @@ sitemap: false
     include_lastmod  true/false: stampa <lastmod> per posts e documenti quando hanno una data.
   Se il file di configurazione non esiste ancora (mai salvato), valgono i default qui sotto.
   I valori con piu' righe arrivano gia' con gli a-capo veri (vedi parseFlatYaml in admin-modules.js),
-  quindi split: "\n" e' il separatore corretto.
+  quindi il modulo li converte con newline_to_br e spezza su un separatore vero.
 {%- endcomment -%}
 {%- assign cfg = site.data.modules.sitemap -%}
 {%- if cfg.exclude_paths -%}
-  {%- assign sm_excl = cfg.exclude_paths | split: "\n" -%}
+  {%- comment -%} In Liquid la stringa con backslash+n NON e un a-capo: non spezza nulla (bug visto: contava solo la prima riga). Si converte l a-capo in un separatore vero e si spezza su quello. {%- endcomment -%}
+  {%- assign sm_norm = cfg.exclude_paths | replace: '\r', '' | newline_to_br | replace: '<br />', '|' | strip_newlines -%}
+  {%- assign sm_excl = sm_norm | split: '|' -%}
 {%- else -%}
   {%- assign sm_excl = "/admin/|/_pages/|/tag/|/category/|/page/" | split: "|" -%}
 {%- endif -%}
