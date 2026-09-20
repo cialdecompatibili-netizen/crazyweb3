@@ -8,8 +8,58 @@
     t.value = v.slice(0, s) + a + sel + (b || '') + v.slice(e); t.focus();
     t.selectionStart = s + a.length; t.selectionEnd = s + a.length + sel.length;
   };
+  /* ---- anteprima markdown: mini renderer senza dipendenze. Tutto il testo passa da esc() PRIMA di
+     applicare le regole, quindi l'HTML digitato nel corpo non viene mai eseguito. Copre: # titoli,
+     **grassetto**, *corsivo*, `codice`, liste - / 1., link, immagini, citazioni >, ---, blocchi ```.
+     Il front matter non c'e': A.splitFM lo separa prima, qui arriva solo il Corpo. */
+  function mdInline(s) {
+    s = esc(s);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">');
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    return s;
+  }
+  window.mdRender = function (src) {
+    var lines = String(src || '').replace(/\r/g, '').split('\n'), out = [], i = 0, list = null, para = [];
+    function flushP() { if (para.length) { out.push('<p>' + mdInline(para.join(' ')) + '</p>'); para = []; } }
+    function flushL() { if (list) { out.push('</' + list + '>'); list = null; } }
+    while (i < lines.length) {
+      var l = lines[i], m;
+      if (/^```/.test(l)) {
+        flushP(); flushL(); var code = []; i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); i++; continue;
+      }
+      if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) { flushP(); flushL(); out.push('<h' + m[1].length + '>' + mdInline(m[2]) + '</h' + m[1].length + '>'); }
+      else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { flushP(); flushL(); out.push('<hr>'); }
+      else if ((m = /^\s*[-*+]\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ul') { flushL(); out.push('<ul>'); list = 'ul'; } out.push('<li>' + mdInline(m[1]) + '</li>'); }
+      else if ((m = /^\s*\d+[.)]\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ol') { flushL(); out.push('<ol>'); list = 'ol'; } out.push('<li>' + mdInline(m[1]) + '</li>'); }
+      else if ((m = /^>\s?(.*)$/.exec(l))) { flushP(); flushL(); out.push('<blockquote>' + mdInline(m[1]) + '</blockquote>'); }
+      else if (/^\s*$/.test(l)) { flushP(); flushL(); }
+      else { flushL(); para.push(l.trim()); }
+      i++;
+    }
+    flushP(); flushL();
+    return out.join('\n');
+  };
+  /* Anteprima / Modifica: alterna textarea#body e div#mdPrev. Il salvataggio legge sempre
+     la textarea (che resta nel DOM, solo nascosta), quindi l'anteprima non cambia cosa viene salvato. */
+  window.mdPrev = function () {
+    var t = $('body'), p = $('mdPrev'), b = $('mdPrevBtn');
+    if (!t || !p) return;
+    if (p.style.display === 'none' || !p.style.display) {
+      p.innerHTML = window.mdRender(t.value) || '<em>(vuoto)</em>';
+      p.style.minHeight = t.offsetHeight + 'px';
+      t.style.display = 'none'; p.style.display = 'block'; b.textContent = 'Modifica'; b.classList.add('primary');
+    } else {
+      p.style.display = 'none'; t.style.display = ''; b.textContent = 'Anteprima'; b.classList.remove('primary'); t.focus();
+    }
+  };
   function toolbar() {
     return '<div class="tools">' +
+      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Anteprima</button>' +
       '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
       '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +
@@ -158,7 +208,7 @@
         else one = '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
         if (BELOW.indexOf(fd[0]) >= 0) below += one; else top += one;
       });
-      h += top + '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea>' + below +
+      h += top + '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea><div id="mdPrev" class="mdprev" style="display:none"></div>' + below +
         '<p><button class="btn primary" onclick="A.save()">Salva e pubblica</button><button class="btn" onclick="A.go(\'' + key + '\')">Annulla</button></p></div>';
       M().innerHTML = h;
     }).catch(function (e) { A.toast(A.errMsg(e), true); });

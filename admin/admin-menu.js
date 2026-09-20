@@ -81,7 +81,7 @@
       '<label>Titolo</label><input id="p_title" value="' + esc(A.fmGet(curP.fm, 'title')) + '">' +
       (isAbout ? '<label>Sottotitolo (sotto il nome, accetta HTML)</label><input id="p_sub" value="' + esc(A.fmGet(curP.fm, 'subtitle')) + '">' +
         '<label>Righe sotto la foto (una per riga, senza &lt;p&gt;)</label><textarea id="p_more" style="min-height:90px">' + esc(moreInfoGet(curP.fm)) + '</textarea>' : '') +
-      '<label>Corpo (Markdown)</label>' + pgToolbar() + '<textarea id="body" style="min-height:340px">' + esc(curP.body) + '</textarea>' +
+      '<label>Corpo (Markdown)</label>' + pgToolbar() + '<textarea id="body" style="min-height:340px">' + esc(curP.body) + '</textarea><div id="mdPrev" class="mdprev" style="display:none"></div>' +
       /* SEO sotto il Corpo (stesso ordine dell'editor articoli). Solo posizione: pgSave() li legge per id. */
       '<label>SEO Title (vuoto = usa il titolo)</label><input id="p_seot" value="' + esc(A.fmGet(curP.fm, 'seo_title')) + '">' +
       '<label>SEO Description (vuoto = estratto automatico del testo)</label><input id="p_seod" value="' + esc(A.fmGet(curP.fm, 'seo_description')) + '">' +
@@ -95,6 +95,7 @@
      La duplico in piccolo qui per non dipendere dall'ordine di caricamento dei due file. */
   function pgToolbar() {
     return '<div class="tools">' +
+      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Anteprima</button>' +
       '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
       '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +
