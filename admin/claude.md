@@ -2,12 +2,27 @@
 
 > Leggi questo file PRIMA di toccare `admin/`. Aggiornalo a fine sessione (edit chirurgici, mai riscrivere tutto).
 
-## 0. Filosofia: zero hardcoded, tutto dinamico
-L'admin deve essere **copiabile su qualsiasi clone/sito senza modificare il codice**. Regole:
-- Mai scrivere in JS/HTML/CSS nomi di repo, utenti GitHub, `baseurl`, URL del sito. Vanno sempre letti a runtime (`REPO`/`TOK` da login+localStorage, `baseurl` da `_config.yml` via `A.baseurl()`).
-- Nessun valore di default che punti a un repo specifico (niente fallback tipo `'utente/repo'` nel codice: se manca, il campo resta vuoto e lo compila l'utente al login).
-- Se serve un path assoluto verso il sito (immagini, link), costruirlo con la variabile letta dinamicamente, mai concatenando una stringa fissa.
-- Prima di ogni salvataggio di codice admin, cercare hardcoded residui: `Select-String -Path admin*.js -Pattern "crazyweb3|cialdecompatibili"` (adattare il pattern al progetto) e ripulire quanto trovato, tranne commenti innocui.
+## 0. Filosofia: zero hardcoded, tutto dinamico, sito clonabile e scalabile
+Vale per **tutto il sito**, non solo per l'admin. Deve essere possibile duplicare la cartella su un nuovo repo GitHub e avere un sito funzionante toccando **solo 2 righe di config**, senza modificare codice.
+
+**Cosa e' gia' parametrico (non toccare, e' cosi' che deve restare):**
+- `url` e `baseurl` in `_config.yml`: unica fonte di verita' per hostname e sottopercorso. Tutto (footer.liquid, deploy.yml, admin) li deve leggere da li', mai duplicarli come stringa fissa altrove.
+- I workflow in `.github/workflows/` usano variabili GitHub (`${{ github.repository }}` ecc.), non nomi di repo scritti a mano: restano validi su qualsiasi fork/clone.
+- L'admin (`admin/*.js`) legge `REPO` dal login (localStorage) e `baseurl` da `_config.yml` via `A.baseurl()` — nessun repo o path scritto nel codice.
+
+**Regole per ogni nuova modifica (codice sito o admin):**
+- Mai scrivere in JS/HTML/CSS/Liquid nomi di repo, utenti GitHub, `baseurl`, URL assoluti del sito. Se serve un path verso il sito, costruirlo da `site.baseurl` (Liquid) o `A.baseurl()` (admin), mai concatenando una stringa fissa.
+- Nessun valore di default che punti a un repo/sito specifico (niente fallback tipo `'utente/repo'`: se manca, il campo resta vuoto e lo compila l'utente).
+- Prima di ogni salvataggio, cercare hardcoded residui: `Select-String -Path admin\admin*.js,_includes\*.liquid -Pattern "crazyweb3|cialdecompatibili"` (adattare il pattern al progetto) e ripulire, tranne commenti/nomi di file non funzionali.
+
+**Procedura per clonare il sito (nuovo progetto dallo stesso template):**
+1. Copiare l'intera cartella su un nuovo repo GitHub (nuovo nome).
+2. In `_config.yml` aggiornare SOLO `url` (hostname) e `baseurl` (sottopercorso, es. `/nuovo-repo`), oltre ai campi anagrafici (`title`, `first_name`/`last_name`, `description`, `footer_text`).
+3. Attivare GitHub Pages: source `gh-pages`, `build_type: legacy` (non `workflow`, altrimenti 404 — vedi sez. 2).
+4. Primo push su `main` fa partire `deploy.yml` in automatico.
+5. Aprire `admin/index.html`, fare login col nuovo `utente/repo` e un token con scope `repo`: l'admin si auto-configura, nessuna modifica al codice necessaria.
+6. Se serve staccare i contenuti (post/pagine/progetti di esempio) prima di pubblicare, farlo dall'admin stesso (Pagine/Articoli) invece che a mano nel repo, cosi' resta tutto tracciato via commit.
+
 
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
@@ -150,6 +165,7 @@ Campi `about.md`: `subtitle` (HTML ok), `profile.align/image/image_circular/more
 - 2026-09-20: creato repo, al-folio vergine, Pages da gh-pages, fix footer/torna-su, bottone WhatsApp demo, studio docs, sviluppo admin da zero.
 - 2026-09-20 (2): topbar sempre visibile su desktop (prima `display:none`) con link Sito/Deploy, testo stato e barra progresso (`.dbar`). In `admin.js`: `start()` ora valorizza `siteLink`/`deployLink` con URL reali (prima restavano `href="#"`) e chiama `lastDeploy()` invece di `pollDeploy()` all'apertura (mostra subito lo stato reale invece di una falsa animazione "in corso"). La barra parte davvero solo dopo un salvataggio (`putFile`/`delFile` chiamano `pollDeploy()`). Pushato (commit 219beb2).
 - 2026-09-20 (3): aggiunta sez. 0 "zero hardcoded, tutto dinamico". Rimossi 2 hardcoded reali: fallback `REPO` in `admin.js` (era `'cialdecompatibili-netizen/crazyweb3'`, ora stringa vuota) e path fisso `/crazyweb3/assets/img/` nel bottone Img di `admin-views.js` (ora `A.baseurl()`, letto da `_config.yml` in `start()` e esposto via `A.baseurl()`).
+- 2026-09-20 (4): sez. 0 estesa a tutto il sito (non solo admin): verificato che `url`/`baseurl` in `_config.yml` sono gia' l'unica fonte di verita' (workflow e footer.liquid non duplicano nulla), remote git di crazyweb3 pulito (nessun token embedded, a differenza di `crazyweb` che ce l'ha). Aggiunta procedura di clonazione in 6 passi (copia repo, 2 righe di config, Pages, push, login admin, contenuti via admin).
 
 ## 10. Prossimi step / idee
 - Sezione Corsi (`_teachings`) e Libri (`_books`) se servono.
