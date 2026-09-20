@@ -191,8 +191,13 @@ Il `header.liquid` ORIGINALE della gem (`al_folio_core-1.0.15`) stampa la voce "
 - Nel ciclo delle pagine, per `permalink == '/'` lo stato "active" e "(current)" usa `page.permalink == '/'` (variabile `is_active`). Senza questo, `page.url contains '/'` risulterebbe vero su TUTTE le pagine e la Home apparirebbe sempre attiva.
 - `about.md` ha `nav: true` e `nav_order: 0.5` (prima di blog=1) per restare per prima come prima.
 **Se aggiorni la gem** `al_folio_core`: la copia locale NON si aggiorna da sola. Confronta il `header.liquid` nuovo della gem con quello del repo (`diff`) e riporta a mano le novita' della gem, altrimenti perdi le sue correzioni.
-**Se il menu perde la Home:** controlla che `_includes/header.liquid` esista nel repo e che `about.md` abbia `nav: true`.
-**`_pages/home.md`** (permalink `/#/`) era un workaround creato dall'admin per avere una Home nel menu: con l'override non serve piu' e va eliminato (duplicato).
+**Se il menu perde la Home:** controlla che `_includes/header.liquid` esista nel repo e che `home.md` abbia `nav: true`.
+**HOME e ABOUT sono due pagine SEPARATE (decisione di Mirco, 20/09/2026):**
+- `_pages/home.md` = pagina principale, permalink `/`, voce di menu "Home" (nav_order 0.3), layout `about`.
+- `_pages/about.md` = pagina "About", permalink `/about/`, voce di menu "About" (nav_order 0.5), layout `about`.
+- Sono nate come copie identiche e si modificano in modo indipendente dall'admin (Pagine > Modifica). Il nome "about" e' solo il nome del LAYOUT del tema (profilo + news + ultimi post), non vuol dire "pagina Chi sono".
+- REGOLA: mai due pagine con lo stesso `permalink` (Jekyll ne pubblica una sola, senza errore). Il vecchio `home.md` con permalink `/#/` era un workaround (voce di menu vuota) ed e' stato sostituito da questa.
+- L'admin (A.pgDel) non da' il bottone Elimina alla pagina con permalink `/`: ora e' home.md, non about.md.
 
 ### Pagine di _pages/ (stato vergine)
 | File | permalink | nav | nav_order | layout | note |
