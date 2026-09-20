@@ -1,7 +1,7 @@
 ---
 layout: default
 permalink: /blog/
-title: blog
+title: Blog
 nav: true
 nav_order: 0.4
 pagination:
@@ -29,24 +29,51 @@ pagination:
   </div>
   {% endif %}
 
-{% if site.display_tags and site.display_tags.size > 0 or site.display_categories and site.display_categories.size > 0 %}
+{% comment %}
+  Barra categorie + tag AUTOMATICA (prima le categorie, poi i tag): legge tutti i post, non serve piu' mantenere
+  display_tags / display_categories in _config.yml. I tag sono ordinati per numero di post e limitati a
+  'blog_max_tags' (default 12) e le categorie a 'blog_max_categories' (default 4), sempre le piu' usate per prime.
+  I link puntano agli archivi di jekyll-archives (/blog/tag/x/, /blog/category/x/), generati per ogni valore.
+{% endcomment %}
+{% assign max_tags = site.blog_max_tags | default: 12 %}
+{% assign max_cats = site.blog_max_categories | default: 4 %}
+{% comment %} site.categories / site.tags sono mappe nome -> array di post: non si ordinano con "sort".
+  Costruisco stringhe "0007|nome" (conteggio a 4 cifre) e le ordino come testo, poi le rovescio. {% endcomment %}
+{% assign cat_keys = "" | split: "" %}
+{% for c in site.categories %}
+  {% assign n = c[1] | size %}
+  {% assign key = n | prepend: "0000" | slice: -4, 4 | append: "|" | append: c[0] %}
+  {% assign cat_keys = cat_keys | push: key %}
+{% endfor %}
+{% assign cat_list = cat_keys | sort | reverse %}
+{% assign tag_keys = "" | split: "" %}
+{% for t in site.tags %}
+  {% assign n = t[1] | size %}
+  {% assign key = n | prepend: "0000" | slice: -4, 4 | append: "|" | append: t[0] %}
+  {% assign tag_keys = tag_keys | push: key %}
+{% endfor %}
+{% assign tag_list = tag_keys | sort | reverse %}
+
+{% if cat_list.size > 0 or tag_list.size > 0 %}
 
   <div class="tag-category-list">
     <ul class="p-0 m-0">
-      {% for tag in site.display_tags %}
+      {% for item in cat_list limit: max_cats %}
+        {% assign category = item | split: "|" | slice: 1, 99 | join: "|" %}
         <li>
-          <i class="fa-solid fa-hashtag fa-sm"></i> <a href="{{ tag | slugify | prepend: '/blog/tag/' | relative_url }}">{{ tag }}</a>
+          <i class="fa-solid fa-tag fa-sm"></i> <a href="{{ category | slugify | prepend: '/blog/category/' | relative_url }}">{{ category }}</a>
         </li>
         {% unless forloop.last %}
           <p>&bull;</p>
         {% endunless %}
       {% endfor %}
-      {% if site.display_categories.size > 0 and site.display_tags.size > 0 %}
+      {% if cat_list.size > 0 and tag_list.size > 0 %}
         <p>&bull;</p>
       {% endif %}
-      {% for category in site.display_categories %}
+      {% for item in tag_list limit: max_tags %}
+        {% assign tag = item | split: "|" | slice: 1, 99 | join: "|" %}
         <li>
-          <i class="fa-solid fa-tag fa-sm"></i> <a href="{{ category | slugify | prepend: '/blog/category/' | relative_url }}">{{ category }}</a>
+          <i class="fa-solid fa-hashtag fa-sm"></i> <a href="{{ tag | slugify | prepend: '/blog/tag/' | relative_url }}">{{ tag }}</a>
         </li>
         {% unless forloop.last %}
           <p>&bull;</p>

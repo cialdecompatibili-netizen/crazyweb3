@@ -358,6 +358,9 @@ jekyll-archives:
 
 display_tags: ["formatting", "images", "links", "math", "code", "blockquotes"] # these tags will be displayed on the front page of your blog
 display_categories: ["external-services"] # these categories will be displayed on the front page of your blog
+# barra tag/categorie del blog ora AUTOMATICA (blog.md): i display_* sopra non servono piu'. Numero massimo di tag mostrati:
+blog_max_tags: 12
+blog_max_categories: 4 # categorie mostrate (le piu' usate); i post esterni ne aggiungono molte
 
 # -----------------------------------------------------------------------------
 # Jekyll Scholar
