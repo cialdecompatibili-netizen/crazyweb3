@@ -70,7 +70,7 @@ Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **
 **Dove sta la logica:** SOLO in `_includes/metadata.liquid` (override della gem `al_folio_core-1.0.15`, variabili `seo_ttl` e `seo_desc` in cima al file). Usate in `<title>`, meta description, OpenGraph, Twitter card e schema.org: se ne tocchi una, controlla che le altre restino coerenti.
 **Trappole:**
 - NON usare `description` come campo SEO: in al-folio e' anche il sottotitolo VISIBILE nella pagina. Per questo esistono campi separati.
-- Nell'editor Pagine i due campi stanno sopra il box YAML e vincono su eventuali `seo_*` scritti a mano nel YAML. Il valore passa da `A.yq()` (obbligatorio: `:` o virgolette rompono il YAML e la pagina sparisce dal build).
+- Posizione nell'editor: SOTTO il Corpo, in quest'ordine: Tag (solo articoli), SEO Title, SEO Description. Negli articoli/progetti/news la lista e' `BELOW` in `admin-views.js`: e' solo ordine visivo, `save()` legge ogni campo per id (`f_<nome>`), quindi spostare un campo NON tocca il salvataggio. Nell'editor Pagine i due campi (`p_seot`, `p_seod`) stanno sotto il Corpo e vincono su eventuali `seo_*` scritti a mano nel YAML. Il valore passa da `A.yq()` (obbligatorio: `:` o virgolette rompono il YAML e la pagina sparisce dal build).
 - Nelle collezioni i campi sono in `FIELDS` (`admin-views.js`, costante `SEO`). Vuoto = `fmDel`, la riga sparisce.
 - Se aggiorni la gem: confronta `metadata.liquid` del repo con quello nuovo (`diff`), come per `header.liquid` (sez. 4b).
 - Fuori scope, per scelta: anteprima Google, contatore caratteri, keyword, sitemap. Aggiungerli solo se richiesto.
