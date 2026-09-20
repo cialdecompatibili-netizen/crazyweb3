@@ -44,22 +44,92 @@
     flushP(); flushL();
     return out.join('\n');
   };
-  /* Anteprima / Modifica: alterna textarea#body e div#mdPrev. Il salvataggio legge sempre
-     la textarea (che resta nel DOM, solo nascosta), quindi l'anteprima non cambia cosa viene salvato. */
+  /* ---- editor VISUALE: #mdPrev e' un contenteditable che mostra il testo formattato e si puo' scrivere
+     direttamente li'. La textarea #body resta la fonte di verita' (il salvataggio legge $('body').value):
+     ad ogni modifica nel visuale, htmlToMd() riscrive #body. Modalita': visuale <-> sorgente (toggle).
+     LIMITE: il round-trip normalizza il markdown (es. '*' -> '-' nelle liste, righe vuote); quello che il
+     renderer non conosce (tabelle, HTML inline, Liquid) va modificato in modalita' Sorgente. */
+  function mdNode(n, ctx) {
+    if (n.nodeType === 3) return n.nodeValue.replace(/\u00a0/g, ' ');
+    if (n.nodeType !== 1) return '';
+    var tag = n.tagName.toLowerCase(), inner = function () { return Array.prototype.map.call(n.childNodes, function (c) { return mdNode(c, ctx); }).join(''); };
+    switch (tag) {
+      case 'strong': case 'b': var a = inner(); return a.trim() ? '**' + a + '**' : a;
+      case 'em': case 'i': var b = inner(); return b.trim() ? '*' + b + '*' : b;
+      case 'code': return n.parentNode && n.parentNode.tagName === 'PRE' ? inner() : '`' + inner() + '`';
+      case 'a': return '[' + inner() + '](' + (n.getAttribute('href') || '') + ')';
+      case 'img': return '![' + (n.getAttribute('alt') || '') + '](' + (n.getAttribute('src') || '') + ')';
+      case 'br': return '\n';
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
+        return '\n\n' + new Array(+tag[1] + 1).join('#') + ' ' + inner().replace(/\n+/g, ' ').trim() + '\n\n';
+      case 'p': case 'div': return '\n\n' + inner().trim() + '\n\n';
+      case 'blockquote': return '\n\n> ' + inner().trim().replace(/\n+/g, ' ') + '\n\n';
+      case 'hr': return '\n\n---\n\n';
+      case 'pre': return '\n\n```\n' + n.textContent.replace(/\n+$/, '') + '\n```\n\n';
+      case 'ul': case 'ol': {
+        var i = 0, out = '\n\n';
+        Array.prototype.forEach.call(n.children, function (li) {
+          if (li.tagName.toLowerCase() !== 'li') return; i++;
+          out += (tag === 'ul' ? '- ' : i + '. ') + mdNode(li, ctx).trim().replace(/\n+/g, ' ') + '\n';
+        });
+        return out + '\n';
+      }
+      case 'li': return inner();
+      default: return inner();
+    }
+  }
+  function htmlToMd(el) {
+    var md = Array.prototype.map.call(el.childNodes, function (c) { return mdNode(c, {}); }).join('');
+    return md.replace(/\n{3,}/g, '\n\n').replace(/^\n+|\s+$/g, '') + '\n';
+  }
+  function visSync() { var t = $('body'), p = $('mdPrev'); if (t && p) t.value = htmlToMd(p); }
+  /* Enter su un titolo/citazione: nuova riga = paragrafo normale (come Notion/Typora), non un altro titolo */
+  function visKey(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    var sel = window.getSelection(); if (!sel.rangeCount) return;
+    var n = sel.anchorNode; n = n && n.nodeType === 3 ? n.parentNode : n;
+    while (n && n.id !== 'mdPrev') {
+      if (/^(H[1-6]|BLOCKQUOTE)$/.test(n.tagName)) { e.preventDefault(); document.execCommand('insertParagraph'); document.execCommand('formatBlock', false, 'p'); return; }
+      if (n.tagName === 'PRE') return;
+      n = n.parentNode;
+    }
+  }
+  /* incolla sempre come testo semplice (niente HTML sporco da Word/web) */
+  function visPaste(e) {
+    e.preventDefault();
+    var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, t);
+  }
+  function visActive() { var p = $('mdPrev'); return p && p.style.display === 'block'; }
   window.mdPrev = function () {
     var t = $('body'), p = $('mdPrev'), b = $('mdPrevBtn');
     if (!t || !p) return;
-    if (p.style.display === 'none' || !p.style.display) {
-      p.innerHTML = window.mdRender(t.value) || '<em>(vuoto)</em>';
-      p.style.minHeight = t.offsetHeight + 'px';
-      t.style.display = 'none'; p.style.display = 'block'; b.textContent = 'Modifica'; b.classList.add('primary');
+    if (!visActive()) {
+      p.innerHTML = window.mdRender(t.value) || '<p><br></p>';
+      p.setAttribute('contenteditable', 'true'); p.setAttribute('spellcheck', 'true');
+      if (!p._mdInit) { p._mdInit = 1; p.addEventListener('input', visSync); p.addEventListener('keydown', visKey); p.addEventListener('paste', visPaste); }
+      p.style.minHeight = Math.max(t.offsetHeight, 200) + 'px';
+      t.style.display = 'none'; p.style.display = 'block'; b.textContent = 'Sorgente'; b.classList.add('primary'); p.focus();
     } else {
-      p.style.display = 'none'; t.style.display = ''; b.textContent = 'Anteprima'; b.classList.remove('primary'); t.focus();
+      visSync(); p.style.display = 'none'; t.style.display = ''; b.textContent = 'Visuale'; b.classList.remove('primary'); t.focus();
     }
+  };
+  /* Toolbar in modalita' visuale: applica il formato con execCommand sulla selezione (stessi bottoni). */
+  var origIns = window.mdIns;
+  window.mdIns = function (a, b) {
+    if (!visActive()) return origIns(a, b);
+    var p = $('mdPrev'); p.focus();
+    if (a === '**') document.execCommand('bold');
+    else if (a === '*') document.execCommand('italic');
+    else if (/## /.test(a)) document.execCommand('formatBlock', false, 'h2');
+    else if (/- /.test(a)) document.execCommand('insertUnorderedList');
+    else if (a === '[') { var u = prompt('Indirizzo del link:', 'https://'); if (u) document.execCommand('createLink', false, u); }
+    else if (a === '![') { var src = prompt('URL immagine:', A.baseurl() + '/assets/img/'); if (src) document.execCommand('insertImage', false, src); }
+    visSync();
   };
   function toolbar() {
     return '<div class="tools">' +
-      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Anteprima</button>' +
+      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Visuale</button>' +
       '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
       '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +

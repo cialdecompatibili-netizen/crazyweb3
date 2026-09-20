@@ -70,3 +70,9 @@ label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
 .mdprev blockquote{margin:.6em 0;padding:2px 12px;border-left:4px solid #c3c4c7;color:#50575e}
 .mdprev img{max-width:100%}
 
+
+.mdprev[contenteditable=true]{cursor:text;outline:none;min-height:200px}
+.mdprev[contenteditable=true]:focus{border-color:#2271b1;box-shadow:0 0 0 1px #2271b1}
+.mdprev a{color:#2271b1}
+.mdprev ul,.mdprev ol{margin:.6em 0;padding-left:1.6em}
+
