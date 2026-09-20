@@ -139,6 +139,14 @@ bing_site_verification: # out your bing-site-verification ID (Bing Webmaster)
 blog_name: al-folio # blog_name will be displayed in your blog page
 blog_description: a simple whitespace theme for academics
 permalink: /blog/:year/:title/
+# --- DATE DEI POST: non toccare senza leggere admin/claude.md sez. 0c ---
+# Senza "timezone" Jekyll legge le date dei post nel fuso del server GitHub (UTC): un post scritto
+# alle 15:06 ora italiana e' "15:06 UTC" = nel futuro -> NON viene pubblicato e da' 404 senza errori.
+# "timezone" fa leggere TUTTE le date senza fuso come ora italiana, su qualunque PC e sul server.
+# "future: true" pubblica comunque anche i post con data appena avanti (mai piu' post spariti in
+# silenzio). Contro: la programmazione dei post per data futura non funziona piu'.
+timezone: Europe/Rome
+future: true
 lsi: false # produce an index for related posts
 
 # Pagination

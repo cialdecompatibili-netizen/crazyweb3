@@ -50,6 +50,17 @@ Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **
 **Perche' questa regola esiste (cronologia):** bug gia' capitati per mancanza di commenti: data quotata che faceva sparire i post; selettore del bottone torna-su sbagliato (`#vanilla-back-to-top` invece di `#back-to-top`); menu con la Home come caso speciale hardcoded nell'admin.
 
 
+## 0c. DATE DEI POST e fuso orario (bug gia' capitato: post che spariscono, 404 senza errori)
+**Sintomo:** un post creato dall'admin non compare in blog/home e la sua pagina da' 404, anche se il file esiste e il deploy e' `success`.
+**Causa:** GitHub builda in UTC. L'admin scrive la data senza fuso (`2026-09-20 15:06:00`, ora italiana del PC). Jekyll la legge come 15:06 UTC; se l'ora UTC attuale e' precedente (in Italia e' UTC+1/+2), il post risulta nel futuro e Jekyll lo scarta silenziosamente (`future` e' false di default: jekyllrb.com/docs/configuration/options).
+**Soluzione stabile (in `_config.yml`, NON nei post):**
+- `timezone: Europe/Rome` -> tutte le date senza fuso sono lette come ora italiana, su qualunque PC e sul server. L'ora legale/solare la gestisce Jekyll da solo.
+- `future: true` -> un post con data un po' avanti viene pubblicato lo stesso. Prezzo: niente programmazione per data futura (il workflow `schedule-posts` e' comunque disattivato).
+**Regole per il codice dell'admin:**
+- La data si scrive SENZA fuso e SENZA virgolette, come oggi (`admin-views.js`, funzione `save`). Non aggiungere offset presi dal browser: cambiano da PC a PC.
+- Se cambi paese/fuso del sito, cambia SOLO `timezone` in `_config.yml`.
+- Non rimuovere `timezone`/`future` dalla config: senza, il bug ritorna.
+
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
 - Base: al-folio **v1.x VERGINE** (alshedivat), tema = gem `al_folio_core` (NON e' in repo: niente _layouts/_sass).
