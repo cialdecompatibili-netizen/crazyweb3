@@ -90,12 +90,13 @@
       '<textarea id="p_fm" style="min-height:200px">' + esc(curP.fm) + '</textarea></details>' +
       '<p>' + save + '</p></div>';
     M().innerHTML = h;
+    if (window.mdStart) window.mdStart();
   };
   /* Toolbar delle pagine: stessa dei post (window.mdIns e' definita in admin-views.js e agisce su #body).
      La duplico in piccolo qui per non dipendere dall'ordine di caricamento dei due file. */
   function pgToolbar() {
     return '<div class="tools">' +
-      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Anteprima</button>' +
+      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Sorgente</button>' +
       '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
       '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +

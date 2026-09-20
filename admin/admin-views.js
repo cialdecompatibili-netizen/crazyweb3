@@ -8,55 +8,163 @@
     t.value = v.slice(0, s) + a + sel + (b || '') + v.slice(e); t.focus();
     t.selectionStart = s + a.length; t.selectionEnd = s + a.length + sel.length;
   };
-  /* ---- anteprima markdown: mini renderer senza dipendenze. Tutto il testo passa da esc() PRIMA di
-     applicare le regole, quindi l'HTML digitato nel corpo non viene mai eseguito. Copre: # titoli,
-     **grassetto**, *corsivo*, `codice`, liste - / 1., link, immagini, citazioni >, ---, blocchi ```.
-     Il front matter non c'e': A.splitFM lo separa prima, qui arriva solo il Corpo. */
+  /* ---- EDITOR VISUALE MARKDOWN (senza librerie) ------------------------------------------------
+     #mdPrev e' un contenteditable: si scrive direttamente sul testo formattato. La textarea #body resta
+     la fonte di verita' (il salvataggio legge $('body').value): a ogni modifica htmlToMd() la riscrive.
+     Parte in VISUALE; "Sorgente" mostra il markdown grezzo.
+     BLOCCHI PROTETTI: cio' che il visuale non sa modificare semanticamente (tabelle, HTML a blocchi,
+     Liquid {% %} / {{ }}) diventa <div class="mdraw" data-raw="..."> con il testo ORIGINALE in un attributo,
+     riscritto identico byte per byte: non si corrompe mai. Si vede la resa e con la matita si edita il sorgente.
+     Liquid dentro un paragrafo = chip <span class="mdliq"> (idem: raw in data-raw).
+     Il raw mostrato nel visuale e' sanificato (via <script>, on*=, javascript:): il salvato resta l'originale. */
+  function safeHtml(h) {
+    return String(h)
+      .replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form)\b[\s\S]*?(<\s*\/\s*\1\s*>|$)/gi, '')
+      .replace(/<\s*(script|style|iframe|object|embed|link|meta|base|form)\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/(href|src|xlink:href)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1=$2#$2');
+  }
+  function attr(s) { return esc(s); }
+  function rawBlock(kind, raw) {
+    var inner;
+    if (kind === 'table') inner = mdTable(raw);
+    else if (kind === 'html') inner = safeHtml(liqChips(raw));
+    else if (kind === 'quote') inner = '<blockquote style="margin:0">' + esc(raw.replace(/^>\s?/gm, '')) + '</blockquote>';
+    else if (kind === 'code' || kind === 'list') inner = '<pre style="margin:0;white-space:pre-wrap">' + esc(raw) + '</pre>';
+    else inner = '<code class="mdliqb">' + esc(raw) + '</code>';
+    return '<div class="mdraw mdraw-' + kind + '" data-kind="' + kind + '" data-raw="' + attr(raw) + '" contenteditable="false">' +
+      '<button type="button" class="mdedit" title="Modifica sorgente del blocco" onclick="mdRawEdit(this)">&#9998;</button>' +
+      '<div class="mdraw-view">' + inner + '</div></div>';
+  }
+  /* {% ... %} e {{ ... }} dentro l'HTML/paragrafo: chip non modificabili (raw in data-raw) */
+  function liqChips(t) {
+    return String(t).replace(/(\{%[\s\S]*?%\}|\{\{[\s\S]*?\}\})/g, function (m) {
+      return '<span class="mdliq" contenteditable="false" data-raw="' + attr(m) + '">' + esc(m.length > 34 ? m.slice(0, 32) + '..' : m) + '</span>';
+    });
+  }
+  function splitRow(r) { r = r.trim().replace(/^\|/, '').replace(/\|$/, ''); return r.split(/(?<!\\)\|/).map(function (c) { return c.trim(); }); }
+  function mdTable(raw) {
+    var L = raw.split('\n').filter(function (x) { return x.trim(); });
+    if (L.length < 2) return '<pre>' + esc(raw) + '</pre>';
+    var head = splitRow(L[0]), al = splitRow(L[1]).map(function (c) { return /^:-+:$/.test(c) ? 'center' : /-+:$/.test(c) ? 'right' : 'left'; });
+    var h = '<table><thead><tr>' + head.map(function (c, k) { return '<th style="text-align:' + (al[k] || 'left') + '">' + mdInline(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    L.slice(2).forEach(function (r) { h += '<tr>' + splitRow(r).map(function (c, k) { return '<td style="text-align:' + (al[k] || 'left') + '">' + mdInline(c) + '</td>'; }).join('') + '</tr>'; });
+    return h + '</tbody></table>';
+  }
   function mdInline(s) {
+    var keep = [];
+    function K(m) { keep.push(m); return '\u0001' + (keep.length - 1) + '\u0002'; }
+    s = String(s);
+    /* 1) codice inline PRIMA di tutto: dentro ai backtick non si tocca niente (tag, liquid, asterischi) */
+    s = s.replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, function (m, t, c) { return K('<code data-b="' + t.length + '">' + esc(c) + '</code>'); });
+    /* 2) link/immagini il cui URL o testo contiene Liquid o HTML: restano TESTO PROTETTO (chip), mai riscritti */
+    s = s.replace(/!?\[[^\]]*\]\([^)]*(\{%|\{\{|<)[^)]*\)/g, function (m) { return K('<span class="mdliq" contenteditable="false" data-raw="' + attr(m) + '">' + esc(m.length > 40 ? m.slice(0, 38) + '..' : m) + '</span>'); });
+    /* 3) Liquid e HTML inline restanti: chip protetti */
+    s = s.replace(/(\{%[\s\S]*?%\}|\{\{[\s\S]*?\}\})/g, function (m) { return K(liqChips(m)); });
+    s = s.replace(/<\/?[a-zA-Z][a-zA-Z0-9-]*(\s[^<>]*)?\/?>/g, function (m) { return K('<span class="mdliq" contenteditable="false" data-raw="' + attr(m) + '">' + esc(m.length > 34 ? m.slice(0, 32) + '..' : m) + '</span>'); });
     s = esc(s);
-    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    /* 4) markdown semplice */
     s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2" style="max-width:100%">');
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    /* 5) rimetto i pezzi protetti */
+    for (var n = 0; n < 3 && /\u0001\d+\u0002/.test(s); n++) s = s.replace(/\u0001(\d+)\u0002/g, function (_, k) { return keep[+k]; });
     return s;
+  }
+  /* Un tag "blocco": elementi HTML standard di struttura + QUALSIASI custom element (nome con trattino:
+     <swiper-container>, <d-article>...) + commenti/direttive. Tutto questo diventa blocco protetto. */
+  var HTML_BLOCK = /^\s*(<\/?(div|section|article|aside|header|footer|nav|figure|figcaption|table|thead|tbody|tr|td|th|ul|ol|li|details|summary|iframe|video|audio|center|p|h[1-6]|pre|blockquote|hr|style|script|form|dl|dt|dd|svg|canvas|picture|source|template|main|label|select|textarea|input|button)\b|<\/?[a-z][a-z0-9]*-[a-z0-9-]*\b|<!--)/i;
+  var DEPTH_TAG = /<\/?(div|section|article|aside|figure|details|table|ul|ol|blockquote|iframe|video|audio|swiper-container|swiper-slide|d-[a-z-]+|[a-z][a-z0-9]*-[a-z0-9-]+)\b[^>]*>/gi;
+  function tagDepth(line) {
+    var d = 0, m; DEPTH_TAG.lastIndex = 0;
+    while ((m = DEPTH_TAG.exec(line))) { if (/\/>$/.test(m[0])) continue; d += /^<\//.test(m[0]) ? -1 : 1; }
+    return d;
+  }
+  /* Blocchi che il visuale NON deve mai reinterpretare: math display $$, direttive kramdown {: ...} sole,
+     definizioni footnote [^x]:, righe con indentazione di codice (4 spazi/tab), liste annidate/checkbox. */
+  function isProtectedLine(l) {
+    return /^\s*\$\$/.test(l) || /^\s*\{:[^}]*\}\s*$/.test(l) || /^\s*\[\^[^\]]+\]:/.test(l) ||
+      /^( {4,}|\t)\S/.test(l) || /^\s+[-*+]\s/.test(l) || /^\s*[-*+]\s+\[[ xX]\]\s/.test(l) || /^\s*\d+[.)]\s+.*$/.test(l) && /^\s{2,}/.test(l);
+  }
+  function roundTrips(html, orig) {
+    try {
+      var d = document.createElement('div'); d.innerHTML = html;
+      return htmlToMd(d).replace(/\n+$/, '') === String(orig).replace(/\s+$/, '');
+    } catch (e) { return false; }
   }
   window.mdRender = function (src) {
     var lines = String(src || '').replace(/\r/g, '').split('\n'), out = [], i = 0, list = null, para = [];
-    function flushP() { if (para.length) { out.push('<p>' + mdInline(para.join(' ')) + '</p>'); para = []; } }
+    function flushP() {
+      if (!para.length) return;
+      var html = '<p>' + para.map(mdInline).join('<br>') + '</p>', orig = para.join('\n');
+      if (!roundTrips(html, orig)) html = rawBlock('html', orig);   /* non torna identico -> blocco protetto */
+      out.push(html); para = [];
+    }
     function flushL() { if (list) { out.push('</' + list + '>'); list = null; } }
+    function protect(kind, arr) { flushP(); flushL(); out.push(rawBlock(kind, arr.join('\n'))); }
     while (i < lines.length) {
       var l = lines[i], m;
-      if (/^```/.test(l)) {
-        flushP(); flushL(); var code = []; i++;
-        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
-        out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>'); i++; continue;
+      if (/^\s*(`{3,}|~{3,})/.test(l)) {                     /* fence: SEMPRE blocco protetto; si chiude solo con >= stessi caratteri dell'apertura */
+        var fm = /^\s*(`{3,}|~{3,})/.exec(l), fch = fm[1].charAt(0), fn = fm[1].length, blk = [l]; i++;
+        var closeRe = new RegExp('^\\s*\\' + fch + '{' + fn + ',}\\s*$');
+        while (i < lines.length && !closeRe.test(lines[i])) { blk.push(lines[i]); i++; }
+        if (i < lines.length) { blk.push(lines[i]); i++; }
+        protect('code', blk); continue;
       }
-      if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) { flushP(); flushL(); out.push('<h' + m[1].length + '>' + mdInline(m[2]) + '</h' + m[1].length + '>'); }
+      if (/^\s*\$\$/.test(l)) {                               /* math display $$ ... $$ (anche su una riga) */
+        var mb = [l]; var one = /^\s*\$\$[\s\S]*\$\$\s*$/.test(l) && l.trim().length > 4; i++;
+        if (!one) { while (i < lines.length && !/\$\$\s*$/.test(lines[i])) { mb.push(lines[i]); i++; } if (i < lines.length) { mb.push(lines[i]); i++; } }
+        protect('liquid', mb); continue;
+      }
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
+        var tb = []; while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { tb.push(lines[i]); i++; }
+        protect('table', tb); continue;
+      }
+      if (/^\s*\{%[^%]*%\}\s*$/.test(l) || /^\s*\{:[^}]*\}\s*$/.test(l) || /^\s*\[\^[^\]]+\]:/.test(l)) { protect('liquid', [l]); i++; continue; }
+      if (HTML_BLOCK.test(l)) {                               /* HTML / custom element: fino a chiusura bilanciata + riga vuota */
+        var hb = [l], depth = tagDepth(l); i++;
+        while (i < lines.length && (depth > 0 || !/^\s*$/.test(lines[i]))) { hb.push(lines[i]); depth += tagDepth(lines[i]); i++; }
+        protect('html', hb); continue;
+      }
+      if (isProtectedLine(l)) {                               /* liste annidate, checkbox, codice indentato: gruppo protetto */
+        var gb = [l]; i++;
+        while (i < lines.length && !/^\s*$/.test(lines[i]) && (isProtectedLine(lines[i]) || /^\s+\S/.test(lines[i]) || /^\s*[-*+]\s/.test(lines[i]) || /^\s*\d+[.)]\s/.test(lines[i]))) { gb.push(lines[i]); i++; }
+        protect('list', gb); continue;
+      }
+      if (/^(?:[-*+]|\d+[.)])\s+/.test(l)) {                  /* gruppo di lista: guardo se ha righe indentate (sotto-liste, continuazioni) */
+        var j = i + 1, nested = false;
+        while (j < lines.length && !/^\s*$/.test(lines[j]) && (/^\s+\S/.test(lines[j]) || /^(?:[-*+]|\d+[.)])\s+/.test(lines[j]))) { if (/^\s+\S/.test(lines[j])) nested = true; j++; }
+        if (nested) { protect('list', lines.slice(i, j)); i = j; continue; }
+      }
+      if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) { flushP(); flushL(); var hh = '<h' + m[1].length + '>' + mdInline(m[2]) + '</h' + m[1].length + '>'; out.push(roundTrips(hh, l) ? hh : rawBlock('html', l)); }
       else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { flushP(); flushL(); out.push('<hr>'); }
-      else if ((m = /^\s*[-*+]\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ul') { flushL(); out.push('<ul>'); list = 'ul'; } out.push('<li>' + mdInline(m[1]) + '</li>'); }
-      else if ((m = /^\s*\d+[.)]\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ol') { flushL(); out.push('<ol>'); list = 'ol'; } out.push('<li>' + mdInline(m[1]) + '</li>'); }
-      else if ((m = /^>\s?(.*)$/.exec(l))) { flushP(); flushL(); out.push('<blockquote>' + mdInline(m[1]) + '</blockquote>'); }
+      else if ((m = /^([-*+])\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ul') { flushL(); out.push('<ul data-m="' + m[1] + '">'); list = 'ul'; } var lu = '<li>' + mdInline(m[2]) + '</li>'; out.push(lu); }
+      else if ((m = /^(\d+)([.)])\s+(.*)$/.exec(l))) { flushP(); if (list !== 'ol') { flushL(); out.push('<ol start="' + m[1] + '" data-d="' + m[2] + '">'); list = 'ol'; } out.push('<li>' + mdInline(m[3]) + '</li>'); }
+      else if (/^>/.test(l)) {
+        flushP(); flushL(); var qb = [l]; while (i + 1 < lines.length && /^>/.test(lines[i + 1])) { i++; qb.push(lines[i]); }
+        var qh = qb.length === 1 && /^>\s?\S/.test(qb[0]) ? '<blockquote>' + mdInline(qb[0].replace(/^>\s?/, '')) + '</blockquote>' : '';
+        out.push(qh && roundTrips(qh, qb[0]) ? qh : rawBlock('quote', qb.join('\n')));
+      }
       else if (/^\s*$/.test(l)) { flushP(); flushL(); }
-      else { flushL(); para.push(l.trim()); }
+      else { flushL(); para.push(l.replace(/\s+$/, '')); }
       i++;
     }
     flushP(); flushL();
     return out.join('\n');
   };
-  /* ---- editor VISUALE: #mdPrev e' un contenteditable che mostra il testo formattato e si puo' scrivere
-     direttamente li'. La textarea #body resta la fonte di verita' (il salvataggio legge $('body').value):
-     ad ogni modifica nel visuale, htmlToMd() riscrive #body. Modalita': visuale <-> sorgente (toggle).
-     LIMITE: il round-trip normalizza il markdown (es. '*' -> '-' nelle liste, righe vuote); quello che il
-     renderer non conosce (tabelle, HTML inline, Liquid) va modificato in modalita' Sorgente. */
+  /* --- HTML -> markdown (il contrario). I blocchi/chip protetti tornano al loro raw originale --- */
   function mdNode(n, ctx) {
     if (n.nodeType === 3) return n.nodeValue.replace(/\u00a0/g, ' ');
     if (n.nodeType !== 1) return '';
     var tag = n.tagName.toLowerCase(), inner = function () { return Array.prototype.map.call(n.childNodes, function (c) { return mdNode(c, ctx); }).join(''); };
+    if (n.classList && n.classList.contains('mdraw')) return '\n\n' + n.getAttribute('data-raw') + '\n\n';
+    if (n.classList && n.classList.contains('mdliq')) return n.getAttribute('data-raw');
+    if (tag === 'button') return '';
     switch (tag) {
       case 'strong': case 'b': var a = inner(); return a.trim() ? '**' + a + '**' : a;
       case 'em': case 'i': var b = inner(); return b.trim() ? '*' + b + '*' : b;
-      case 'code': return n.parentNode && n.parentNode.tagName === 'PRE' ? inner() : '`' + inner() + '`';
+      case 'code': if (n.parentNode && n.parentNode.tagName === 'PRE') return inner(); var bt = new Array((+n.getAttribute('data-b') || 1) + 1).join('`'); return bt + n.textContent + bt;
       case 'a': return '[' + inner() + '](' + (n.getAttribute('href') || '') + ')';
       case 'img': return '![' + (n.getAttribute('alt') || '') + '](' + (n.getAttribute('src') || '') + ')';
       case 'br': return '\n';
@@ -65,12 +173,12 @@
       case 'p': case 'div': return '\n\n' + inner().trim() + '\n\n';
       case 'blockquote': return '\n\n> ' + inner().trim().replace(/\n+/g, ' ') + '\n\n';
       case 'hr': return '\n\n---\n\n';
-      case 'pre': return '\n\n```\n' + n.textContent.replace(/\n+$/, '') + '\n```\n\n';
+      case 'pre': return '\n\n```' + (n.getAttribute('data-lang') || '') + '\n' + n.textContent.replace(/\n+$/, '') + '\n```\n\n';
       case 'ul': case 'ol': {
         var i = 0, out = '\n\n';
         Array.prototype.forEach.call(n.children, function (li) {
           if (li.tagName.toLowerCase() !== 'li') return; i++;
-          out += (tag === 'ul' ? '- ' : i + '. ') + mdNode(li, ctx).trim().replace(/\n+/g, ' ') + '\n';
+          out += (tag === 'ul' ? (n.getAttribute('data-m') || '-') + ' ' : ((+n.getAttribute('start') || 1) + i - 1) + (n.getAttribute('data-d') || '.') + ' ') + mdNode(li, ctx).trim().replace(/\n+/g, ' ') + '\n';
         });
         return out + '\n';
       }
@@ -83,7 +191,7 @@
     return md.replace(/\n{3,}/g, '\n\n').replace(/^\n+|\s+$/g, '') + '\n';
   }
   function visSync() { var t = $('body'), p = $('mdPrev'); if (t && p) t.value = htmlToMd(p); }
-  /* Enter su un titolo/citazione: nuova riga = paragrafo normale (come Notion/Typora), non un altro titolo */
+  /* Invio dentro un titolo/citazione = paragrafo normale (come Notion/Typora) */
   function visKey(e) {
     if (e.key !== 'Enter' || e.shiftKey) return;
     var sel = window.getSelection(); if (!sel.rangeCount) return;
@@ -94,27 +202,42 @@
       n = n.parentNode;
     }
   }
-  /* incolla sempre come testo semplice (niente HTML sporco da Word/web) */
-  function visPaste(e) {
+  function visPaste(e) {                                       /* incolla sempre testo semplice */
     e.preventDefault();
-    var t = (e.clipboardData || window.clipboardData).getData('text/plain');
-    document.execCommand('insertText', false, t);
+    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
   }
-  function visActive() { var p = $('mdPrev'); return p && p.style.display === 'block'; }
-  window.mdPrev = function () {
-    var t = $('body'), p = $('mdPrev'), b = $('mdPrevBtn');
-    if (!t || !p) return;
-    if (!visActive()) {
-      p.innerHTML = window.mdRender(t.value) || '<p><br></p>';
-      p.setAttribute('contenteditable', 'true'); p.setAttribute('spellcheck', 'true');
-      if (!p._mdInit) { p._mdInit = 1; p.addEventListener('input', visSync); p.addEventListener('keydown', visKey); p.addEventListener('paste', visPaste); }
-      p.style.minHeight = Math.max(t.offsetHeight, 200) + 'px';
-      t.style.display = 'none'; p.style.display = 'block'; b.textContent = 'Sorgente'; b.classList.add('primary'); p.focus();
+  /* Matita su un blocco protetto: modifica del sorgente in un mini-editor (textarea) sopra il blocco */
+  window.mdRawEdit = function (btn) {
+    var blk = btn.closest('.mdraw'); if (!blk) return;
+    var view = blk.querySelector('.mdraw-view'), ta = blk.querySelector('textarea.mdraw-ta');
+    if (!ta) {
+      ta = document.createElement('textarea'); ta.className = 'mdraw-ta'; ta.value = blk.getAttribute('data-raw');
+      ta.setAttribute('spellcheck', 'false'); ta.style.minHeight = Math.max(90, Math.min(360, ta.value.split('\n').length * 20 + 20)) + 'px';
+      blk.appendChild(ta); view.style.display = 'none'; btn.innerHTML = '&#10003;'; btn.title = 'Applica'; ta.focus();
     } else {
-      visSync(); p.style.display = 'none'; t.style.display = ''; b.textContent = 'Visuale'; b.classList.remove('primary'); t.focus();
+      var kind = blk.getAttribute('data-kind'), tmp = document.createElement('div');
+      tmp.innerHTML = rawBlock(kind, ta.value.replace(/\s+$/, ''));
+      blk.parentNode.replaceChild(tmp.firstChild, blk); visSync();
     }
   };
-  /* Toolbar in modalita' visuale: applica il formato con execCommand sulla selezione (stessi bottoni). */
+  function visActive() { var p = $('mdPrev'); return p && p.style.display === 'block'; }
+  function visOpen() {
+    var t = $('body'), p = $('mdPrev'), b = $('mdPrevBtn'); if (!t || !p) return;
+    p.innerHTML = window.mdRender(t.value) || '<p><br></p>';
+    p.setAttribute('contenteditable', 'true'); p.setAttribute('spellcheck', 'true');
+    if (!p._mdInit) { p._mdInit = 1; p.addEventListener('input', visSync); p.addEventListener('keydown', visKey); p.addEventListener('paste', visPaste); }
+    p.style.minHeight = Math.max(t.offsetHeight, 240) + 'px';
+    t.style.display = 'none'; p.style.display = 'block';
+    if (b) { b.textContent = 'Sorgente'; b.classList.add('primary'); }
+  }
+  window.mdPrev = function () {                                /* toggle Visuale <-> Sorgente */
+    var t = $('body'), p = $('mdPrev'), b = $('mdPrevBtn'); if (!t || !p) return;
+    if (!visActive()) { visOpen(); p.focus(); }
+    else { visSync(); p.style.display = 'none'; t.style.display = ''; if (b) { b.textContent = 'Visuale'; b.classList.remove('primary'); } t.focus(); }
+  };
+  /* all'apertura dell'editor si parte in VISUALE (chiamata da A.edit / A.pgEdit dopo aver messo il DOM) */
+  window.mdStart = function () { if ($('mdPrev') && $('body')) visOpen(); };
+  /* i bottoni della toolbar, in modalita' visuale, agiscono sulla selezione */
   var origIns = window.mdIns;
   window.mdIns = function (a, b) {
     if (!visActive()) return origIns(a, b);
@@ -129,7 +252,7 @@
   };
   function toolbar() {
     return '<div class="tools">' +
-      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Visuale</button>' +
+      '<button class="btn sm" id="mdPrevBtn" onclick="mdPrev()">Sorgente</button>' +
       '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
       '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +
@@ -281,6 +404,7 @@
       h += top + '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea><div id="mdPrev" class="mdprev" style="display:none"></div>' + below +
         '<p><button class="btn primary" onclick="A.save()">Salva e pubblica</button><button class="btn" onclick="A.go(\'' + key + '\')">Annulla</button></p></div>';
       M().innerHTML = h;
+      window.mdStart();
     }).catch(function (e) { A.toast(A.errMsg(e), true); });
   };
 
