@@ -125,7 +125,7 @@
         v = (sel === '__new__' ? $('f_' + k + '_new').value : sel).trim();
       } else v = $('f_' + k).value.trim();
       if (v === '') { if (k !== 'title' || key !== 'news') fm = k === 'img' ? A.fmSet(fm, k, '') : A.fmDel(fm, k); else fm = A.fmDel(fm, k); return; }
-      if (k === 'inline' || k === 'importance') fm = A.fmSet(fm, k, v);
+      if (k === 'inline' || k === 'importance' || k === 'date') fm = A.fmSet(fm, k, v);
       else fm = A.fmSet(fm, k, A.yq(v));
     });
     if (key === 'news' && !/^related_posts:/m.test(fm)) fm = A.fmSet(fm, 'related_posts', 'false');
