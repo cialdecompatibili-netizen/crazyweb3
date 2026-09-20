@@ -29,12 +29,15 @@ pagination:
     (restano sotto ogni post, cliccabili).
   - CSS (l'unico di questa pagina): righe di testo piccolo, separatore "·" con margini minimi, niente icone,
     Per stringere o allargare basta cambiare font-size / gap / margin qui sotto.
-  - SPAZIO ATTORNO ALLA LISTA: "margin: 1cm 0" nella regola .tag-category-list = 1cm sopra (dal menu) e 1cm sotto (prima dei post).
-    Cambia solo quel "1cm" (es. 0.5cm piu stretto, 1.5cm piu largo).
+  - SPAZIO SOPRA: il tema mette 3rem (classe mt-5) sopra il contenuto; qui lo azzero solo per questa pagina
+    (regola .container.mt-5:has(...)), cosi' la lista sta a 1cm dalla riga del menu = il primo valore di "margin: 1cm 0 .5cm".
+    Cambia solo quel "1cm" (0.5cm piu stretto, 1.5cm piu largo). Il secondo valore (.5cm) e' lo spazio sotto la lista.
+  - NESSUNA RIGA ORIZZONTALE sotto le card in evidenza (tolto il tag hr).
   - I margini stretti valgono solo per questa pagina: usano selettori .post e .tag-category-list, non toccano il tema.
 {% endcomment %}
 <style>
-  .post > .tag-category-list { margin: 1cm 0; line-height: 1.25; font-size: .85rem; text-align: center; }
+  .container.mt-5:has(> .post > .tag-category-list) { margin-top: 0 !important; }
+  .post > .tag-category-list { margin: 1cm 0 .5cm; line-height: 1.25; font-size: .85rem; text-align: center; }
   .post > .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .35rem; list-style: none; padding: 0; margin: 0; }
   .post > .tag-category-list li { margin: 0; padding: 0; }
   .post > .blog-desc { margin: 0 0 .25rem; line-height: 1.25; font-size: .85rem; text-align: center; color: var(--global-text-color-light); }
@@ -94,7 +97,6 @@ pagination:
       {% endfor %}
       </div>
     </div>
-    <hr style="margin: .25rem 0 .75rem">
 
 {% endif %}
 
