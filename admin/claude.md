@@ -274,7 +274,7 @@ commit atomico (`A.commitFiles`). Da li' si Attiva/Disattiva/Disinstalla senza t
 **File coinvolti:**
 - `_includes/modules_hook.liquid`: stampa, per l'hook richiesto (`head`|`footer`), l'include di ogni
   modulo installato e attivo. Chiamato da `_includes/metadata.liquid` (hook='head') e
-  `_includes/footer.liquid` (hook='footer'). Sintassi `{% include {{ variabile }} %}` verificata su
+  `_includes/footer.liquid` (hook='footer'). Sintassi {% raw %}`{% include {{ variabile }} %}`{% endraw %} verificata su
   [DOC Jekyll, jekyllrb.com/docs/includes, sez. "Using variables names for the include file"].
 - `_data/modules_registry.yml`: JSON dentro un file .yml (deciso in sessione precedente, migliore
   di un parser YAML a mano): `{ "installed": { "<slug>": {name,enabled,hooks{}} } }`. Il nome .yml
