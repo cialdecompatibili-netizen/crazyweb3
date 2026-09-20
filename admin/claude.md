@@ -61,6 +61,22 @@ Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **
 - Se cambi paese/fuso del sito, cambia SOLO `timezone` in `_config.yml`.
 - Non rimuovere `timezone`/`future` dalla config: senza, il bug ritorna.
 
+## 0d. SEO: seo_title e seo_description (solo questi due, volutamente semplici)
+**Cosa fa:** ogni articolo, progetto, news e pagina ha due campi opzionali nell'editor admin. Compilati = usati. Vuoti = fallback automatico.
+| Campo (front matter) | Se compilato | Se vuoto |
+|---|---|---|
+| `seo_title` | e' il `<title>` intero (senza aggiungere il nome del sito) | `titolo pagina \| titolo sito` (comportamento originale al-folio) |
+| `seo_description` | e' la meta description | prima `description`, poi estratto del testo (155 caratteri), poi `description` del sito |
+**Dove sta la logica:** SOLO in `_includes/metadata.liquid` (override della gem `al_folio_core-1.0.15`, variabili `seo_ttl` e `seo_desc` in cima al file). Usate in `<title>`, meta description, OpenGraph, Twitter card e schema.org: se ne tocchi una, controlla che le altre restino coerenti.
+**Trappole:**
+- NON usare `description` come campo SEO: in al-folio e' anche il sottotitolo VISIBILE nella pagina. Per questo esistono campi separati.
+- Nell'editor Pagine i due campi stanno sopra il box YAML e vincono su eventuali `seo_*` scritti a mano nel YAML. Il valore passa da `A.yq()` (obbligatorio: `:` o virgolette rompono il YAML e la pagina sparisce dal build).
+- Nelle collezioni i campi sono in `FIELDS` (`admin-views.js`, costante `SEO`). Vuoto = `fmDel`, la riga sparisce.
+- Se aggiorni la gem: confronta `metadata.liquid` del repo con quello nuovo (`diff`), come per `header.liquid` (sez. 4b).
+- Fuori scope, per scelta: anteprima Google, contatore caratteri, keyword, sitemap. Aggiungerli solo se richiesto.
+- LIMITE NOTO dell'estratto automatico: parte dal markdown grezzo. I simboli `* _ # \` > [ ]` vengono tolti, ma la parte `(url)` di un link `[testo](url)` resta (Liquid non ha regex). Se una pagina inizia con un link, compilare `seo_description` a mano.
+- Test locale: `bundle exec jekyll build --destination $env:TEMP\seo_test` (serve `tzinfo-data` nel Gemfile, gia' aggiunto), poi leggere `<title>` e `<meta name="description">` dell'HTML generato. Il Gemfile ha `tzinfo-data` SOLO per Windows: sul server GitHub non serve.
+
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
 - Base: al-folio **v1.x VERGINE** (alshedivat), tema = gem `al_folio_core` (NON e' in repo: niente _layouts/_sass).
