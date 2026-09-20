@@ -332,7 +332,7 @@ var A = (function () {
     var s = $('side'), o = $('overlay'), on = f === undefined ? !s.classList.contains('open') : f;
     s.classList.toggle('open', on); o.classList.toggle('open', on);
   }
-  var titles = { dash: 'Bacheca', posts: 'Articoli', pages: 'Pagine', menu: 'Menu', projects: 'Progetti', news: 'News', media: 'Immagini', modules: 'Moduli', settings: 'Impostazioni' };
+  var titles = { dash: 'Bacheca', posts: 'Articoli', cats: 'Categorie articoli', pages: 'Pagine', menu: 'Menu', projects: 'Progetti', news: 'News', media: 'Immagini', modules: 'Moduli', settings: 'Impostazioni' };
   function go(p) {
     var links = document.querySelectorAll('.side a[data-p]');
     for (var i = 0; i < links.length; i++) links[i].classList.toggle('on', links[i].getAttribute('data-p') === p);
