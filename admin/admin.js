@@ -194,7 +194,17 @@ var A = (function () {
      Due workflow GitHub distinti, in sequenza: "Deploy site" (definito in questo repo,
      .github/workflows/deploy.yml) builda il sito Jekyll; a build finita GitHub Pages lancia in
      automatico un secondo workflow di sistema chiamato "pages build and deployment" che pubblica
-     l'artifact. Il sito e' online solo quando ENTRAMBI risultano "completed"/"success". */
+     l'artifact. Il sito e' online solo quando ENTRAMBI risultano "completed"/"success".
+
+     FIX 2026-09-20: il pallino restava bloccato su "Deploy in corso..." anche a build finita.
+     Causa 1: t0 confrontava x.created_at (formato GitHub "YYYY-MM-DDTHH:MM:SSZ", SENZA millisecondi)
+     con new Date().toISOString() (SEMPRE con millisecondi, "...SSS Z"): un confronto tra stringhe di
+     formato diverso, quindi via epoch (Date.parse) invece che testo, niente piu' ambiguita'.
+     Causa 2 (la piu' probabile in pratica): per_page=10 e' troppo poco quando in una sessione si
+     fanno piu' salvataggi ravvicinati (ogni salvataggio genera 2 run: Deploy site + pages build and
+     deployment). Con 5-6 salvataggi in pochi minuti la run cercata puo' finire oltre la decima
+     posizione e sparire dal filtro: pollDeploy() continua a girare aspettando una run che nella
+     pagina 1 non c'e' piu'. per_page alzato a 30 sia qui che in lastDeploy(). */
   var pt, pf;
   function setDeploy(cls, txt, pct) {
     var dot = $('deployDot'), t = $('deployTxt'), bar = $('deployBar');
@@ -203,18 +213,18 @@ var A = (function () {
   }
   function pollDeploy() {
     clearTimeout(pt); clearInterval(pf);
-    /* t0 = "5 secondi prima di adesso" e serve a scartare run vecchie quando si interroga la
-       lista GET /actions/runs (torna le piu' recenti, non solo quelle innescate da QUESTO
-       salvataggio). Si confronta con created_at dei run, che e' l'ora dei server GitHub (UTC).
-       Per questo "adesso" e' serverNow() (ora GitHub, via header Date) e NON new Date(): con un
+    /* t0 in epoch (numero, non stringa): "5 secondi prima di adesso" per scartare run vecchie
+       quando si interroga /actions/runs (torna le piu' recenti, non solo quelle di QUESTO
+       salvataggio). "adesso" e' serverNow() (ora GitHub via header Date), NON new Date(): con un
        PC dall'orologio sballato la run giusta finirebbe tra le "vecchie" e il pallino resterebbe
-       in attesa per sempre. Il margine di 5s copre solo il ritardo di rete. Vedi sez. 0e. */
-    var t0 = new Date(serverNow().getTime() - 5000).toISOString(), pct = 5, n = 0;
+       in attesa per sempre. Il confronto sotto usa Date.parse(x.created_at) per lo stesso motivo:
+       niente confronto tra stringhe di formato diverso (vedi commento sopra la funzione). */
+    var t0 = serverNow().getTime() - 5000, pct = 5, n = 0;
     setDeploy('run', 'Deploy in corso...', pct);
     pf = setInterval(function () { if (pct < 85) { pct += pct < 40 ? 2 : 0.6; $('deployBar').style.width = pct + '%'; } }, 1500);
     (function tick() {
-      api('GET', '/actions/runs?branch=' + BR + '&per_page=10').then(function (r) {
-        var runs = (r.workflow_runs || []).filter(function (x) { return x.created_at >= t0; });
+      api('GET', '/actions/runs?branch=' + BR + '&per_page=30').then(function (r) {
+        var runs = (r.workflow_runs || []).filter(function (x) { var c = Date.parse(x.created_at); return !isNaN(c) && c >= t0; });
         var b = runs.filter(function (x) { return x.name === 'Deploy site'; })[0];
         var p = runs.filter(function (x) { return x.name === 'pages build and deployment'; })[0];
         if (b && b.status === 'completed' && b.conclusion !== 'success') { clearInterval(pf); setDeploy('ko', 'Build fallita', 100); return; }
@@ -229,9 +239,9 @@ var A = (function () {
       }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
     })();
   }
-  /* lastDeploy: stato del pallino all'apertura dell'admin (senza aver appena salvato). Legge le ultime run di Actions. Stessa regola di pollDeploy: 'Deploy site' + 'pages build and deployment' devono essere ENTRAMBE completed/success prima di dire 'online'. */
+  /* lastDeploy: stato del pallino all'apertura dell'admin (senza aver appena salvato). Legge le ultime run di Actions. Stessa regola di pollDeploy: 'Deploy site' + 'pages build and deployment' devono essere ENTRAMBE completed/success prima di dire 'online'. per_page alzato a 30 per lo stesso motivo di pollDeploy (vedi commento sopra). */
   function lastDeploy() { // stato iniziale all'apertura
-    api('GET', '/actions/runs?branch=' + BR + '&per_page=10').then(function (r) {
+    api('GET', '/actions/runs?branch=' + BR + '&per_page=30').then(function (r) {
       var p = (r.workflow_runs || []).filter(function (x) { return x.name === 'pages build and deployment'; })[0];
       if (!p) return setDeploy('', 'Nessun deploy', 0);
       if (p.status !== 'completed') return pollDeploy();
