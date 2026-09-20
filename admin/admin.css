@@ -76,3 +76,17 @@ label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
 .mdprev a{color:#2271b1}
 .mdprev ul,.mdprev ol{margin:.6em 0;padding-left:1.6em}
 
+
+/* blocchi protetti dell'editor visuale (tabelle, HTML, Liquid) */
+.mdraw{position:relative;margin:10px 0;padding:8px 34px 8px 10px;border:1px dashed #b5bcc2;border-radius:4px;background:#fafbfc;user-select:none}
+.mdraw:hover{border-color:#2271b1}
+.mdraw .mdedit{position:absolute;top:4px;right:4px;width:26px;height:26px;padding:0;border:1px solid #c3c4c7;border-radius:4px;background:#fff;cursor:pointer;line-height:1}
+.mdraw .mdedit:hover{background:#2271b1;color:#fff;border-color:#2271b1}
+.mdraw-ta{display:block;width:100%;font-family:Consolas,monospace;font-size:13px;user-select:text}
+.mdraw-view{pointer-events:none;overflow:auto}
+.mdraw-liquid .mdliqb,.mdliq{font-family:Consolas,monospace;font-size:12px;background:#eef3fb;color:#1d4f91;border:1px solid #c8d8ee;border-radius:3px;padding:1px 6px;white-space:pre-wrap}
+.mdliq{display:inline-block;user-select:none;cursor:default}
+.mdprev table{border-collapse:collapse;margin:.6em 0;width:100%}
+.mdprev th,.mdprev td{border:1px solid #c3c4c7;padding:5px 9px}
+.mdprev th{background:#f0f0f1}
+.mdprev pre[data-lang]::before{content:attr(data-lang);display:block;font-size:11px;color:#787c82;margin-bottom:4px}
