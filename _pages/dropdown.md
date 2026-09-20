@@ -11,5 +11,7 @@ children:
   - title: blog
     permalink: /blog/
   - title: divider
+  - title: People
+    permalink: /people/
 ---
 
