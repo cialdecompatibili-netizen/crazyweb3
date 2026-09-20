@@ -33,9 +33,6 @@
   </footer>
 {% endif %}
 
-{% comment %} MODULI: aggancio 'footer' (HTML dei moduli attivi, in fondo al body). Vedi modules_hook.liquid. Se togli questa riga i moduli con hook footer spariscono dal sito. {% endcomment %}
-{% include modules_hook.liquid hook='footer' %}
-
 <!-- Bottoni flottanti: torna-su (in alto) + WhatsApp DEMO (sotto), sempre sopra il footer fisso -->
 <style>
   :root { --footer-h: 40px; }
@@ -83,5 +80,12 @@
     setFooterH();
   })();
 </script>
-{% comment %} MODULI: aggancio 'footer' (JS/HTML dei moduli attivi, fine pagina). Vedi modules_hook.liquid. Se togli questa riga i moduli con hook footer non caricano piu' nulla. {% endcomment %}
+{% comment %}
+  MODULI: aggancio 'footer' (HTML/JS dei moduli attivi, fine pagina). Vedi modules_hook.liquid.
+  FIX 2026-09-20: questo include era duplicato (anche subito dopo il footer standard, prima dei
+  bottoni flottanti): ogni modulo con hook footer veniva stampato DUE VOLTE nel DOM. Tenuta solo
+  questa occorrenza, in fondo, dopo lo script che misura --footer-h: se un modulo aggiunge il
+  proprio JS che legge quella variabile CSS o l'altezza del footer, la trova gia' pronta.
+  Se togli questa riga i moduli con hook footer spariscono dal sito.
+{% endcomment %}
 {% include modules_hook.liquid hook='footer' %}
