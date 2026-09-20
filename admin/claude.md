@@ -5,7 +5,24 @@ sitemap: false
 # claude.md - Admin crazyweb3 (al-folio v1.x)
 
 > Leggi questo file PRIMA di toccare `admin/`. Aggiornalo a fine sessione (edit chirurgici, mai riscrivere tutto).
+>
+> **Prima regola di tutte (sez. 00):** questo progetto e' pensato per persone NON esperte di informatica che lo usano con l'AI. Ogni scelta va giudicata da questo.
 
+## 00. PRINCIPIO GUIDA (viene PRIMA di tutto): pensato per chi NON e' esperto di informatica, e si usa con l'AI
+Questo progetto (sito + admin + moduli) e' fatto per persone **senza competenze tecniche**, che lo gestiscono **parlando con un'AI** (Claude o simile) e usando l'admin col mouse. Chi lo usa non conosce YAML, Liquid, Git, JSON, front matter: non deve mai doverli imparare per fare una cosa normale. Ogni scelta va giudicata con questa domanda: *"una persona che non sa programmare, aiutata da un'AI, riesce a farlo senza rompere niente?"*. Se la risposta e' no, la soluzione e' sbagliata anche se tecnicamente elegante.
+
+**Regole che ne discendono (valgono per ogni sessione futura, per te che leggi):**
+1. **Tutto passa dall'admin.** Se una cosa comune richiede di modificare un file a mano, e' un difetto da risolvere aggiungendo un pulsante o un campo, non da spiegare all'utente. Esempi gia' fatti: menu e sottomenu, moduli con Installa/Attiva/Configura, sitemap con link e Copia.
+2. **Nessun gergo nell'interfaccia.** Testi in italiano semplice, con un esempio quando serve ("uno per riga, es. /admin/"). Mai messaggi crudi tipo "409", "sha mismatch", "Liquid syntax error": tradurli in una frase che dica cosa e' successo e cosa fare. Le etichette dicono cosa fa il campo, non come e' fatto.
+3. **Valori di default sensati, sempre.** Ogni impostazione deve funzionare gia' prima che l'utente la tocchi (vedi il default `| default:` nei moduli). Un campo vuoto non deve rompere il sito.
+4. **Non si deve poter rompere il sito con un clic.** Prima di scrivere si controlla (es. `A.mdInstall` verifica che i file esistano prima di installare, perche' un file mancante fa fallire l'intera build). Operazioni distruttive chiedono conferma e dicono cosa succede davvero (cosa resta, cosa si cancella).
+5. **Ogni schermata spiega da sola.** Mai pagine vuote o bottoni che non fanno nulla senza dirlo: se un modulo non ha impostazioni la pagina Configura lo scrive. Sotto un campo non ovvio va una riga di aiuto in linguaggio comune.
+6. **L'AI e' l'utente principale del codice.** Il codice lo legge e modifica un'AI in sessioni diverse, senza memoria delle precedenti: per questo i commenti (sez. 0b) spiegano il *perche'*, dichiarano la fonte e le trappole, e questo file va aggiornato a fine sessione. Un'AI futura deve poter riprendere il lavoro leggendo solo il codice e questo file.
+7. **Quando spieghi all'utente, parla come a una persona, non a uno sviluppatore.** Dai il risultato ("il banner ora si vede"), poi al massimo un dettaglio tecnico. Se qualcosa non e' stato provato dal vivo, dillo chiaro e dì cosa deve controllare lui, in una riga.
+8. **Un nuovo modulo = una cartella con un `module.json`**, niente altro da configurare a mano. Se serve toccare piu' cose per aggiungere una funzione, semplificare prima di aggiungere.
+9. **Le stesse cose si fanno sempre allo stesso modo** in tutte le sezioni (stessa posizione dei bottoni, stesse parole: Attiva, Disattiva, Configura, Salva, Annulla). Per chi non e' tecnico la coerenza e' piu' importante della novita'.
+
+**Prima di considerare finita una funzione, controlla:** un principiante la capirebbe senza leggere questo file? Il testo di ogni etichetta e messaggio e' comprensibile? Cosa succede se lascia tutto vuoto o clicca due volte? Se il sito potrebbe rompersi, c'e' un controllo che lo impedisce?
 ## 0. Filosofia: zero hardcoded, tutto dinamico, sito clonabile e scalabile
 Vale per **tutto il sito**, non solo per l'admin. Deve essere possibile duplicare la cartella su un nuovo repo GitHub e avere un sito funzionante toccando **solo 2 righe di config**, senza modificare codice.
 
