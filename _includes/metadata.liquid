@@ -10,7 +10,15 @@
 {% assign seo_desc = page.seo_description %}
 {% if seo_desc == null or seo_desc == '' %}{% assign seo_desc = page.description %}{% endif %}
 {% if seo_desc == null or seo_desc == '' %}
-  {% if page.content and page.content != '' %}
+  {% comment %}
+    L'estratto automatico si fa SOLO se il sorgente non contiene codice Liquid (tag graffa-percento o
+    doppia graffa). Pagine come /blog/ sono template: il loro page.content e' codice, non testo, e
+    finirebbe nella meta description (bug reale visto online sulla pagina blog). In quel caso si passa
+    al fallback del sito.
+  {% endcomment %}
+  {% assign has_liquid = false %}
+  {% if page.content contains '{%' or page.content contains '{{' %}{% assign has_liquid = true %}{% endif %}
+  {% if page.content and page.content != '' and has_liquid == false %}
     {% comment %}
       L'estratto parte dal markdown GREZZO (page.content non e' ancora HTML in questo punto): tolgo i
       simboli markdown piu' comuni (* _ # ` > [ ]). LIMITE NOTO: Liquid non ha regex, quindi la parte
