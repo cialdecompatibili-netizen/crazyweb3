@@ -2,8 +2,8 @@
 layout: page
 title: test
 nav: true
-nav_order: 20
+nav_order: 9
 dropdown: true
 children:
-  - title: divider
 ---
+
