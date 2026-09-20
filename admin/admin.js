@@ -60,18 +60,42 @@ var A = (function () {
   function today() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   function now() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return today() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00'; }
 
-  /* ---- deploy status ---- */
-  var pt;
+  /* ---- deploy status: build ("Deploy site") + pubblicazione ("pages build and deployment") ---- */
+  var pt, pf;
+  function setDeploy(cls, txt, pct) {
+    var dot = $('deployDot'), t = $('deployTxt'), bar = $('deployBar');
+    dot.className = 'dot ' + cls; t.textContent = txt; bar.style.width = pct + '%';
+    if (pct >= 100) setTimeout(function () { bar.style.width = '0%'; }, 1500);
+  }
   function pollDeploy() {
-    var dot = $('deployDot'); dot.className = 'dot run'; clearTimeout(pt);
-    var n = 0;
+    clearTimeout(pt); clearInterval(pf);
+    var t0 = new Date(Date.now() - 5000).toISOString(), pct = 5, n = 0;
+    setDeploy('run', 'Deploy in corso...', pct);
+    pf = setInterval(function () { if (pct < 85) { pct += pct < 40 ? 2 : 0.6; $('deployBar').style.width = pct + '%'; } }, 1500);
     (function tick() {
-      api('GET', '/actions/runs?branch=' + BR + '&per_page=5').then(function (r) {
-        var d = (r.workflow_runs || []).filter(function (x) { return x.name === 'Deploy site'; })[0];
-        if (d && d.status === 'completed') { dot.className = 'dot ' + (d.conclusion === 'success' ? 'ok' : 'ko'); dot.title = 'Deploy: ' + d.conclusion; return; }
-        if (++n < 40) pt = setTimeout(tick, 6000);
-      }).catch(function () { dot.className = 'dot'; });
+      api('GET', '/actions/runs?branch=' + BR + '&per_page=10').then(function (r) {
+        var runs = (r.workflow_runs || []).filter(function (x) { return x.created_at >= t0; });
+        var b = runs.filter(function (x) { return x.name === 'Deploy site'; })[0];
+        var p = runs.filter(function (x) { return x.name === 'pages build and deployment'; })[0];
+        if (b && b.status === 'completed' && b.conclusion !== 'success') { clearInterval(pf); setDeploy('ko', 'Build fallita', 100); return; }
+        if (p && p.status === 'completed') {
+          clearInterval(pf);
+          if (p.conclusion === 'success') setDeploy('ok', 'Sito aggiornato', 100); else setDeploy('ko', 'Pubblicazione fallita', 100);
+          return;
+        }
+        if (b && b.status === 'completed') $('deployTxt').textContent = 'Pubblicazione...';
+        else if (b) $('deployTxt').textContent = 'Build in corso...';
+        if (++n < 60) pt = setTimeout(tick, 5000); else { clearInterval(pf); setDeploy('', 'Controlla su GitHub', 0); }
+      }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
     })();
+  }
+  function lastDeploy() { // stato iniziale all'apertura
+    api('GET', '/actions/runs?branch=' + BR + '&per_page=10').then(function (r) {
+      var p = (r.workflow_runs || []).filter(function (x) { return x.name === 'pages build and deployment'; })[0];
+      if (!p) return setDeploy('', 'Nessun deploy', 0);
+      if (p.status !== 'completed') return pollDeploy();
+      setDeploy(p.conclusion === 'success' ? 'ok' : 'ko', p.conclusion === 'success' ? 'Sito aggiornato' : 'Ultimo deploy fallito', 0);
+    }).catch(function () { });
   }
 
   /* ---- login / nav ---- */
@@ -86,7 +110,11 @@ var A = (function () {
   function logout() { localStorage.removeItem('adm_tok'); location.reload(); }
   function start() {
     $('login').style.display = 'none'; $('app').style.display = 'block';
-    $('repoName').textContent = REPO; main = $('main'); go('dash'); pollDeploy();
+    $('repoName').textContent = REPO; main = $('main'); go('dash');
+    var parts = REPO.split('/'), user = parts[0], repoName = parts[1];
+    $('siteLink').href = 'https://' + user + '.github.io/' + repoName + '/';
+    $('deployLink').href = 'https://github.com/' + REPO + '/actions';
+    lastDeploy();
   }
   function toggleMenu(f) {
     var s = $('side'), o = $('overlay'), on = f === undefined ? !s.classList.contains('open') : f;
