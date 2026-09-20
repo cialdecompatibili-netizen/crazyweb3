@@ -1,0 +1,39 @@
+---
+layout: null
+sitemap: false
+---
+{%- comment -%}
+  MODULO SITEMAP - non usa la gem jekyll-sitemap (quella richiede Gemfile + plugins in _config.yml,
+  cioe' build-time; il sistema hook di questo admin agisce solo a runtime via _includes, senza
+  toccare Gemfile). Questo e' Jekyll puro: layout null fa passare il file per Liquid senza applicare
+  nessun layout del tema. Fonte: DOC Jekyll, jekyllrb.com/docs/pages, front matter layout null.
+  sitemap: false e' solo per compatibilita' futura con jekyll-sitemap, se mai installata insieme.
+
+  Elenca site.pages (pagine statiche), site.posts (articoli) e site.documents (tutti i documenti
+  di tutte le collezioni con output true: projects, news, teachings, books - una collezione nuova
+  entra da sola, non serve elencarla). Fonte: DOC Jekyll, jekyllrb.com/docs/variables.
+  Esclude pagine con redirect, con sitemap false nel front matter, e questa stessa pagina.
+{%- endcomment -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{%- for p in site.pages -%}
+  {%- unless p.redirect or p.sitemap == false or p.url == page.url -%}
+  <url>
+    <loc>{{ p.url | absolute_url }}</loc>
+  </url>
+  {%- endunless -%}
+{%- endfor -%}
+{%- for post in site.posts -%}
+  <url>
+    <loc>{{ post.url | absolute_url }}</loc>
+    <lastmod>{{ post.date | date_to_xmlschema }}</lastmod>
+  </url>
+{%- endfor -%}
+{%- for doc in site.documents -%}
+  {%- unless doc.sitemap == false -%}
+  <url>
+    <loc>{{ doc.url | absolute_url }}</loc>
+  </url>
+  {%- endunless -%}
+{%- endfor -%}
+</urlset>
