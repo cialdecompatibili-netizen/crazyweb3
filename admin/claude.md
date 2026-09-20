@@ -23,6 +23,32 @@ Vale per **tutto il sito**, non solo per l'admin. Deve essere possibile duplicar
 5. Aprire `admin/index.html`, fare login col nuovo `utente/repo` e un token con scope `repo`: l'admin si auto-configura, nessuna modifica al codice necessaria.
 6. Se serve staccare i contenuti (post/pagine/progetti di esempio) prima di pubblicare, farlo dall'admin stesso (Pagine/Articoli) invece che a mano nel repo, cosi' resta tutto tracciato via commit.
 
+## 0b. REGOLA OBBLIGATORIA: commentare il codice nei punti critici (in automatico, sempre)
+Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **commenta nel codice stesso i punti critici, senza che nessuno lo chieda**. Serve perche' la sessione successiva (o un'altra chat) non ha memoria: il commento e' l'unica cosa che impedisce di rompere di nuovo quello che e' gia' stato sistemato.
+
+**Cosa e' un "punto critico" (commento obbligatorio):**
+- Un valore che NON va quotato o trasformato (es. `date`, `inline`, `importance` scritti senza virgolette).
+- Codice che dipende da un formato esatto del front matter (parser manuali, regex su blocchi YAML come `children:`).
+- Codice che dipende da come il tema/la gem costruisce l'HTML (es. `header.liquid`, selettori come `#back-to-top`).
+- Chiamate API con vincoli nascosti (sha obbligatorio, 409 su doppio salvataggio, rate limit).
+- Timing/asincronia (`BASEURL` letto dopo `start()`, finestra `t0` del deploy).
+- Qualsiasi fix fatto dopo un bug: il commento dice **cosa si era rotto** e **perche' questa e' la forma giusta**.
+- Override di file della gem nel repo (vedi sez. 4b): il commento in cima al file dice cosa e' cambiato rispetto all'originale.
+
+**Come si scrive un buon commento:**
+1. Dice il PERCHE', non il cosa (il cosa lo legge chiunque nel codice).
+2. Cita la fonte quando c'e': documentazione al-folio (`docs/CUSTOMIZE.md`), Jekyll (`jekyllrb.com/docs/...`), file della gem letto direttamente.
+3. Distingue cio' che e' **documentato** da cio' che e' **dedotto** leggendo la gem: se e' dedotto, lo scrive esplicitamente e dice di riverificarlo se la gem cambia.
+4. Dice cosa succede se qualcuno lo cambia (es. "il post sparisce da blog/home senza errori in build").
+
+**Checklist prima di ogni push (obbligatoria):**
+- `node --check admin/<file>.js` su tutti i file JS toccati.
+- I punti critici toccati hanno il commento aggiornato (non lasciare commenti che descrivono il comportamento vecchio).
+- `git status` per vedere che non restino file modificati e non committati (e' successo: commenti scritti ma mai pushati perche' la chat si e' interrotta).
+- Dopo il push, controllare che il deploy finisca in `success`.
+
+**Perche' questa regola esiste (cronologia):** bug gia' capitati per mancanza di commenti: data quotata che faceva sparire i post; selettore del bottone torna-su sbagliato (`#vanilla-back-to-top` invece di `#back-to-top`); menu con la Home come caso speciale hardcoded nell'admin.
+
 
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
@@ -86,8 +112,8 @@ related_posts: false
 
 ## 4. MENU e SUBMENU (cuore dell'admin)
 Il menu NON e' in un file dati: viene generato da `_includes/header.liquid` (gem) leggendo il front matter delle pagine in `_pages/`.
-- Voce home: la pagina con `permalink: /` (about.md), il testo del link e' il suo `title`.
-- Altre voci: tutte le pagine con `nav: true`, ordinate per `nav_order` (numero crescente). `nav: false` (o assente) = fuori dal menu.
+- Voce home (about.md, `permalink: /`): **e' una voce di menu NORMALE come tutte le altre** (vedi 4b). Ha `nav: true` + `nav_order` e si gestisce dalla lista Menu dell'admin. NON aggiungere righe speciali/hardcoded per la Home nell'admin.
+- Tutte le voci: pagine con `nav: true`, ordinate per `nav_order` (numero crescente). `nav: false` (o assente) = fuori dal menu.
 - **Submenu (dropdown)**: pagina con `dropdown: true` + `children:` (lista). Il `title` della pagina e' l'etichetta del dropdown; la pagina stessa NON e' cliccabile (href="#").
   ```
   layout: page
@@ -110,6 +136,15 @@ Il menu NON e' in un file dati: viene generato da `_includes/header.liquid` (gem
 - **`_data/navigation.yml` NON e' letto da al-folio v1**: non usarlo.
 - Cambiare ordine/voci = modificare `nav`, `nav_order`, `title`, `dropdown`, `children` nel front matter dei `.md` di `_pages/`.
 - Se cancelli una pagina, ricontrolla `nav_order` delle altre e i `children` del dropdown.
+
+### 4b. Override di `_includes/header.liquid` (Home come voce normale)
+Il `header.liquid` ORIGINALE della gem (`al_folio_core-1.0.15`) stampa la voce "About" scritta a mano come PRIMA voce, fuori dal ciclo ordinato per `nav_order`: per questo la Home non si poteva ne' spostare ne' togliere. Il repo ora ha una **copia locale** in `_includes/header.liquid` (Jekyll da' priorita' ai file del repo su quelli della gem) con queste differenze:
+- Rimossi il ciclo che leggeva `about_title` e il blocco `<!-- About -->` hardcoded.
+- Nel ciclo delle pagine, per `permalink == '/'` lo stato "active" e "(current)" usa `page.permalink == '/'` (variabile `is_active`). Senza questo, `page.url contains '/'` risulterebbe vero su TUTTE le pagine e la Home apparirebbe sempre attiva.
+- `about.md` ha `nav: true` e `nav_order: 0.5` (prima di blog=1) per restare per prima come prima.
+**Se aggiorni la gem** `al_folio_core`: la copia locale NON si aggiorna da sola. Confronta il `header.liquid` nuovo della gem con quello del repo (`diff`) e riporta a mano le novita' della gem, altrimenti perdi le sue correzioni.
+**Se il menu perde la Home:** controlla che `_includes/header.liquid` esista nel repo e che `about.md` abbia `nav: true`.
+**`_pages/home.md`** (permalink `/#/`) era un workaround creato dall'admin per avere una Home nel menu: con l'override non serve piu' e va eliminato (duplicato).
 
 ### Pagine di _pages/ (stato vergine)
 | File | permalink | nav | nav_order | layout | note |
