@@ -1,6 +1,10 @@
 /* Admin crazyweb3 - al-folio v1. Vedi admin/claude.md */
 var A = (function () {
   var TOK = '', REPO = '', BR = 'main', main, busy = false, BASEURL = '';
+  /* SKEW = (ora server GitHub) - (ora del PC), in millisecondi. Aggiornato a ogni chiamata API.
+     SITE_TZ = fuso del sito, letto da "timezone:" in _config.yml (mai scritto qui: vedi sez. 0 claude.md).
+     Ordine di fiducia per l'ora dei post: GitHub (Date header) > orologio PC. Il fuso NON viene dal PC. */
+  var SKEW = 0, SITE_TZ = '';
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var b64e = function (s) { return btoa(unescape(encodeURIComponent(s))); };
@@ -15,6 +19,12 @@ var A = (function () {
     var o = { method: method, headers: { Authorization: 'token ' + TOK, Accept: 'application/vnd.github+json' } };
     if (body) { o.body = JSON.stringify(body); o.headers['Content-Type'] = 'application/json'; }
     return fetch('https://api.github.com/repos/' + REPO + path, o).then(function (r) {
+      /* OROLOGIO: ogni risposta GitHub porta l'header "Date" (ora esatta del server, UTC). Lo confronto
+         con l'orologio del PC e tengo lo scarto in SKEW. Cosi' un PC con l'ora sballata non altera
+         piu' la data dei post ne' la finestra del deploy. Vedi serverNow() e admin/claude.md sez. 0e.
+         Se l'header manca o e' illeggibile SKEW resta com'era: si ricade sull'orologio del PC. */
+      var sd = r.headers.get('Date'), st = sd ? Date.parse(sd) : NaN;
+      if (!isNaN(st)) SKEW = st - Date.now();
       if (r.status === 204) return {};
       return r.json().then(function (j) {
         if (!r.ok) { var e = new Error(j.message || r.status); e.status = r.status; throw e; }
@@ -84,8 +94,26 @@ var A = (function () {
   function fmDel(fm, k) { return fm.replace(new RegExp('^' + k + ':.*\\r?\\n?', 'm'), ''); }
   function yq(s) { s = String(s); return /[:#'"\[\]{}&*!|>%@`]/.test(s) || /^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '\\"') + '"' : s; }
   function slugify(s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senza-titolo'; }
-  function today() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
-  function now() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return today() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00'; }
+  /* ORA DEI POST (punto critico, vedi admin/claude.md sez. 0e):
+     - serverNow(): ora ESATTA = orologio PC + SKEW (scarto misurato contro l'header Date di GitHub).
+       Un PC con l'ora sballata non altera piu' la data dei post. Se SKEW non e' ancora noto vale 0.
+     - Il fuso e' quello del SITO (SITE_TZ, da _config.yml "timezone:"), non quello del PC: cosi'
+       il risultato e' identico su ogni computer. Intl.DateTimeFormat con timeZone fa lui l'ora legale.
+     - Output "YYYY-MM-DD HH:MM:00" SENZA fuso e SENZA virgolette: Jekyll lo rilegge in "timezone:"
+       (regola sez. 0c). Non aggiungere offset qui.
+     - Se SITE_TZ e' vuoto o non valido (nome sbagliato in config) si ripiega sul fuso del PC. */
+  function serverNow() { return new Date(Date.now() + SKEW); }
+  function siteParts(d) {
+    var o = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
+    var f;
+    try { if (SITE_TZ) { o.timeZone = SITE_TZ; } f = new Intl.DateTimeFormat('en-CA', o); }
+    catch (e) { delete o.timeZone; f = new Intl.DateTimeFormat('en-CA', o); }
+    var p = {}; f.formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
+    if (p.hour === '24') p.hour = '00';
+    return p;
+  }
+  function today() { var p = siteParts(serverNow()); return p.year + '-' + p.month + '-' + p.day; }
+  function now() { var p = siteParts(serverNow()); return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute + ':00'; }
 
   /* ---- deploy status: build ("Deploy site") + pubblicazione ("pages build and deployment") ----
      Due workflow GitHub distinti, in sequenza: "Deploy site" (definito in questo repo,
@@ -102,13 +130,11 @@ var A = (function () {
     clearTimeout(pt); clearInterval(pf);
     /* t0 = "5 secondi prima di adesso" e serve a scartare run vecchie quando si interroga la
        lista GET /actions/runs (torna le piu' recenti, non solo quelle innescate da QUESTO
-       salvataggio). E' un confronto tra l'orologio del browser dell'utente e i timestamp che
-       GitHub assegna ai run (UTC, orologio dei suoi server): un margine di 5s copre normali
-       piccole discrepanze, ma su un client con orologio molto sballato puo' far perdere la run
-       giusta (rientrerebbe tra quelle "vecchie") o, viceversa, far agganciare una run precedente
-       ancora recente. Non e' un problema documentato da GitHub, e' un limite intrinseco del
-       confrontare un'ora locale con un'ora server senza sincronizzazione esplicita. */
-    var t0 = new Date(Date.now() - 5000).toISOString(), pct = 5, n = 0;
+       salvataggio). Si confronta con created_at dei run, che e' l'ora dei server GitHub (UTC).
+       Per questo "adesso" e' serverNow() (ora GitHub, via header Date) e NON new Date(): con un
+       PC dall'orologio sballato la run giusta finirebbe tra le "vecchie" e il pallino resterebbe
+       in attesa per sempre. Il margine di 5s copre solo il ritardo di rete. Vedi sez. 0e. */
+    var t0 = new Date(serverNow().getTime() - 5000).toISOString(), pct = 5, n = 0;
     setDeploy('run', 'Deploy in corso...', pct);
     pf = setInterval(function () { if (pct < 85) { pct += pct < 40 ? 2 : 0.6; $('deployBar').style.width = pct + '%'; } }, 1500);
     (function tick() {
@@ -167,6 +193,11 @@ var A = (function () {
     getFile('_config.yml').then(function (f) {
       var m = f.text.match(/^baseurl:\s*(.*)$/m);
       BASEURL = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+      /* timezone del sito: e' quello che Jekyll usa per leggere le date dei post (sez. 0c). L'admin
+         deve scrivere l'ora nello STESSO fuso, altrimenti il post nasce sfasato. Il commento in coda
+         alla riga ("timezone: Europe/Rome # ...") va tolto, altrimenti Intl lo rifiuta. */
+      var tz = f.text.match(/^timezone:[ \t]*([^\s#]+)/m);
+      SITE_TZ = tz ? tz[1].replace(/^["']|["']$/g, '') : '';
     }).catch(function () { });
   }
   function toggleMenu(f) {

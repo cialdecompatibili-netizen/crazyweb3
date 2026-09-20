@@ -77,6 +77,21 @@ Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **
 - LIMITE NOTO dell'estratto automatico: parte dal markdown grezzo. I simboli `* _ # \` > [ ]` vengono tolti, ma la parte `(url)` di un link `[testo](url)` resta (Liquid non ha regex). Se una pagina inizia con un link, compilare `seo_description` a mano.
 - Test locale: `bundle exec jekyll build --destination $env:TEMP\seo_test` (serve `tzinfo-data` nel Gemfile, gia' aggiunto), poi leggere `<title>` e `<meta name="description">` dell'HTML generato. Il Gemfile ha `tzinfo-data` SOLO per Windows: sul server GitHub non serve.
 
+## 0e. OROLOGIO: l'ora dei post viene da GitHub, non dal PC (PC con l'ora sballata / piu' PC)
+**Problema:** `new Date()` legge l'orologio del PC. Con ora sballata il post nasceva con data/ora sbagliata, in ordine sbagliato nel blog, e il pallino deploy non trovava la run giusta.
+**Soluzione (`admin.js`):**
+- `api()` legge l'header `Date` di OGNI risposta GitHub e salva `SKEW = oraServer - Date.now()`.
+- `serverNow()` = `Date.now() + SKEW`: ora esatta indipendente dal PC. Fonte: GitHub, gia' in uso per tutto il resto, nessun servizio esterno in piu'.
+- Il fuso e' quello del SITO: `SITE_TZ` si legge da `timezone:` in `_config.yml` (una sola fonte, sez. 0c), mai dal PC e mai scritto nel codice. `Intl.DateTimeFormat` gestisce ora legale/solare.
+- `now()`/`today()` restituiscono `YYYY-MM-DD HH:MM:00` SENZA offset e SENZA virgolette (regola sez. 0c).
+- `pollDeploy()` usa `serverNow()` per la finestra `t0`.
+**Regole:**
+- Vietato `new Date()` / `Date.now()` diretti per date scritte nei file o confrontate con timestamp GitHub: usare `serverNow()`.
+- Vietato aggiungere offset (`+0000`, `+0200`) alle date: c'era nelle news, tolto. Con `timezone` in config sposterebbe l'ora di 1-2 ore.
+- Se `timezone` in config e' scritto male l'admin non crasha: ripiega sul fuso del PC (i post restano leggibili, ma l'ora puo' sfasare). Controllare la config.
+- Test rapido della logica: estrarre `serverNow`/`siteParts`/`now` e girarli con `node` simulando PC in ritardo/anticipo (8 casi: PC esatto, -3h, +1 giorno, inverno, mezzanotte, fuso errato, fuso vuoto).
+**Limite noto:** l'ora e' corretta dalla prima chiamata API in poi. Il login ne fa diverse prima di aprire l'editor, quindi in pratica e' sempre pronta. Se GitHub non risponde con `Date` si usa l'orologio del PC.
+
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
 - Base: al-folio **v1.x VERGINE** (alshedivat), tema = gem `al_folio_core` (NON e' in repo: niente _layouts/_sass).

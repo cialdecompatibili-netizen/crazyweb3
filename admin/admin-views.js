@@ -139,7 +139,10 @@
       var h = '<h2>' + (name ? 'Modifica ' + esc(name) : 'Nuovo in ' + C[key].label) + '</h2><div class="card">';
       FIELDS[key].forEach(function (fd) {
         var v = f ? A.fmGet(cur.fm, fd[0]) : '';
-        if (!f && fd[0] === 'date') v = key === 'posts' ? A.now() : A.now() + ' +0000';
+        /* data iniziale di un nuovo elemento: A.now() = ora GitHub nel fuso del sito, SENZA offset.
+           Prima le news aggiungevano ' +0000': con "timezone: Europe/Rome" in config avrebbe spostato
+           l'ora di 1-2 ore. Regola unica per tutte le collezioni (sez. 0c/0e claude.md). */
+        if (!f && fd[0] === 'date') v = A.now();
         if (!f && fd[0] === 'inline') v = 'true';
         if (!f && fd[0] === 'importance') v = '1';
         if (fd[2] === 'cat') h += catField(fd, v);
