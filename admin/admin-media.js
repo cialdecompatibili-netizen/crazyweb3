@@ -21,6 +21,7 @@
     if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { A.toast('Copiato: ' + t); });
     else A.toast(t);
   };
+  /* A.upload: carica in assets/img/. PUNTI CRITICI: (1) il file va inviato in base64 SENZA il prefisso 'data:...;base64,' (per questo split(',')[1]) e putFile con isB64=true, altrimenti lo ricodifica e l'immagine e' corrotta. (2) il nome e' normalizzato (minuscolo, solo a-z0-9._-): niente spazi ne' maiuscole, i percorsi su GitHub Pages sono case-sensitive. (3) se il file esiste gia' si legge lo sha e lo si sovrascrive; senza sha GitHub risponde 422. (4) upload in sequenza, un commit per file. Limite: file molto grandi (oltre ~25 MB) vengono rifiutati dall'API. [FONTE: docs.github.com REST 'Create or update file contents'] */
   A.upload = A.wrap(function () {
     var fs = $('up').files; if (!fs.length) return A.toast('Scegli un file', true);
     var arr = Array.prototype.slice.call(fs);
@@ -37,6 +38,7 @@
       });
     }, Promise.resolve()).then(function () { A.toast('Caricate'); A.go('media'); });
   });
+  /* A.delImg: elimina un'immagine. NON controlla se e' usata in post/pagine: se lo e', li' resta un'immagine rotta. Cercare il nome (es. con la ricerca del repo) prima di eliminare. */
   A.delImg = A.wrap(function (n) {
     if (!confirm('Eliminare ' + n + '?')) return;
     return A.getFile('assets/img/' + n).then(function (f) { return A.delFile('assets/img/' + n, f.sha); })

@@ -45,6 +45,7 @@
     });
     return out;
   }
+  /* kidsYaml: SCRIVE il blocco children: con l'identazione esatta che kids() sa rileggere (2 spazi per '- title', 4 per 'permalink'). Se cambi l'identazione qui devi cambiare anche il regex di kids(), e viceversa. children/dropdown: [DEDOTTO dalla gem al_folio_core, NON documentato in docs/CUSTOMIZE.md - vedi commento in cima a kids()]. Il permalink e' scritto SENZA yq(): va bene per percorsi ('/books/') e URL ('https://x.it/a', i due punti non seguiti da spazio sono validi in YAML). Rompe il YAML un permalink con ': ' (due punti + spazio) o con ' #'. Il template tratta come link esterno solo cio' che contiene '://' (header.liquid, riga con child.permalink contains '://'), tutto il resto passa da relative_url. [DEDOTTO dalla gem al_folio_core, NON documentato in CUSTOMIZE.md] */
   function kidsYaml(arr) {
     return 'children:\n' + arr.map(function (k) {
       return k.title === 'divider' ? '  - title: divider' : '  - title: ' + A.yq(k.title) + '\n    permalink: ' + k.permalink;
@@ -77,6 +78,7 @@
       '<p><button class="btn primary" onclick="A.pgSave()">Salva e pubblica</button><button class="btn" onclick="A.go(\'pages\')">Annulla</button></p></div>';
     M().innerHTML = h;
   };
+  /* A.pgSave: salva una pagina di _pages/. Il YAML puo' essere modificato a mano dall'utente: se lo rompe (indentazione, due punti non quotati) la pagina SPARISCE dal build, senza errore visibile. Le pagine hanno 'layout' e 'permalink' [DOC al-folio CUSTOMIZE.md: 'change the layout attribute ... and the path to access it by changing the permalink']. sha e' obbligatorio per aggiornare un file esistente (vedi putFile). Eliminare o rinominare permalink '/' rompe la home. */
   A.pgSave = A.wrap(function () {
     var name = curP.name || (($('p_name') || {}).value || '').trim();
     if (!name) return A.toast('Nome file obbligatorio', true);
@@ -92,6 +94,7 @@
     var txt = '---\n' + pfm.replace(/\n+$/, '') + '\n---\n\n' + $('body').value.replace(/^\n+/, '');
     return A.putFile('_pages/' + name + '.md', txt, curP.sha, 'admin: pagina ' + name).then(function () { A.toast('Salvato'); A.go('pages'); });
   });
+  /* A.pgDel: elimina il file. Effetti collaterali NON automatici: se la pagina era in un dropdown (children: di un'altra pagina) il link nel menu resta e punta a un 404; se era in nav resta il buco nell'ordine. L'admin avvisa solo con confirm(): controllare il Menu dopo. La pagina con permalink '/' (home) non ha il bottone Elimina: non rimuoverlo. */
   A.pgDel = A.wrap(function (name) {
     if (!confirm('Eliminare ' + name + '? Controlla poi il menu.')) return;
     var p = PG.filter(function (x) { return x.name === name; })[0];
@@ -138,9 +141,11 @@
     if (!on) fm = A.fmDel(fm, 'nav_order');
     return A.putFile('_pages/' + name, '---\n' + fm.replace(/\n+$/, '') + '\n---\n' + (p.body.charAt(0) === '\n' ? '' : '\n') + p.body, p.sha, 'admin: menu ' + (on ? 'aggiungi ' : 'togli ') + name);
   }
+  /* mnOff/mnOn: togliere/aggiungere una pagina al menu = cambiare 'nav: false/true' nel front matter [DOC al-folio: 'nav: true' nel front matter di _pages, es. bookshelf]. NON cancella la pagina: resta raggiungibile dal suo permalink. mnOn assegna nav_order 20 (finisce in fondo): [nav_order DEDOTTO dalla gem, non citato in CUSTOMIZE.md; ordine = 'sort: nav_order' in header.liquid]. */
   A.mnOff = A.wrap(function (n) { if (!confirm('Togliere dal menu?')) return; return setNav(n, false).then(function () { A.toast('Tolto'); A.go('menu'); }); });
   A.mnOn = A.wrap(function (n) { return setNav(n, true).then(function () { A.toast('Aggiunto (ordine 20, modificalo)'); A.go('menu'); }); });
 
+  /* mvNew: crea una NUOVA pagina gia' nel menu. Il permalink deve iniziare e finire con '/' (lo forzo) e non deve gia' esistere: due pagine con lo stesso permalink si sovrascrivono in build e una sparisce. Il nome file deriva dal titolo (slugify + '_'), quindi due titoli uguali sovrascrivono lo stesso file. */
   A.mvNew = A.wrap(function () {
     var t = ($('mv_t').value || '').trim(); if (!t) return A.toast('Titolo obbligatorio', true);
     var perm = ($('mv_p').value || '').trim() || '/' + A.slugify(t) + '/';
@@ -150,12 +155,14 @@
     return A.putFile('_pages/' + A.slugify(t).replace(/-/g, '_') + '.md', '---\n' + fm + '\n---\n', '', 'admin: nuova voce menu ' + t).then(function () { A.toast('Creata (ordine 20, modificalo)'); A.go('menu'); });
   });
 
+  /* ddNew: crea un submenu = pagina con 'dropdown: true' + 'children:' iniziale con un solo 'divider' (deve esistere almeno la chiave children, altrimenti il template non trova la lista). [DEDOTTO dalla gem al_folio_core / header.liquid, NON documentato in CUSTOMIZE.md]. Riverificare se si aggiorna la gem. */
   A.ddNew = A.wrap(function () {
     var t = ($('dd_t').value || '').trim(); if (!t) return A.toast('Titolo obbligatorio', true);
     var fm = 'layout: page\ntitle: ' + A.yq(t) + '\nnav: true\nnav_order: 20\ndropdown: true\nchildren:\n  - title: divider';
     return A.putFile('_pages/' + A.slugify(t).replace(/-/g, '_') + '.md', '---\n' + fm + '\n---\n', '', 'admin: nuovo submenu ' + t).then(function () { A.toast('Creato'); A.go('menu'); });
   });
 
+  /* mnSave: salva TUTTE le righe modificate del menu, una PUT per file, in SEQUENZA (reduce). Non in parallelo: ogni PUT crea un commit e due PUT simultanee sullo stesso branch danno 409. Riscrive 'children:' rimuovendo il vecchio blocco con regex e riaccodando kidsYaml(): funziona solo con l'identazione attesa (vedi kids). Salva solo i file cambiati (fm !== p.fm) per non fare commit inutili. Ogni file salvato fa partire un deploy: molti salvataggi = molti build in coda. */
   A.mnSave = A.wrap(function () {
     var rows = document.querySelectorAll('#mn > .mrow'), jobs = [];
     for (var i = 0; i < rows.length; i++) {

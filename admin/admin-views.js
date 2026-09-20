@@ -164,6 +164,7 @@
     }).catch(function (e) { A.toast(A.errMsg(e), true); });
   };
 
+  /* A.save: scrive il front matter di articolo/progetto/news. PUNTI CRITICI: (1) 'date', 'inline', 'importance' vanno con fmSet DIRETTO, mai yq: devono restare timestamp/booleano/numero (sez. 0c). (2) valore vuoto = riga rimossa con fmDel, cosi' il sito usa il fallback (SEO, sez. 0d). (3) il nome file di un NUOVO post e' 'data-slug.md' con la data del campo Data: se la data e' nel futuro senza 'future: true' il post non esce (sez. 0c). (4) i campi si leggono per id 'f_<nome>': cambiare l'ordine visivo (BELOW) non tocca il salvataggio. [FONTE: naming file post, al-folio docs/CUSTOMIZE.md] */
   A.save = A.wrap(function () {
     var key = cur.key, fm = cur.fm || 'layout: ' + LAYOUT[key], name = cur.name;
     fm = A.fmSet(fm, 'layout', LAYOUT[key]);

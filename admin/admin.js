@@ -51,6 +51,7 @@ var A = (function () {
     if (sha) b.sha = sha;
     return api('PUT', '/contents/' + p, b).then(function (r) { pollDeploy(); return r; });
   }
+  /* delFile: DELETE su GitHub Contents API richiede lo sha corrente del file (stessa concorrenza ottimistica di putFile). Va sempre letto un attimo prima con getFile: uno sha vecchio da' 409. Dopo l'eliminazione parte pollDeploy() perche' la cancellazione e' un commit e fa ripartire il build. [FONTE: docs.github.com REST 'Delete a file'] */
   function delFile(p, sha) {
     return api('DELETE', '/contents/' + p, { message: 'admin: elimina ' + p, sha: sha, branch: BR }).then(function (r) { pollDeploy(); return r; });
   }
@@ -71,7 +72,7 @@ var A = (function () {
        errori in build. Per questo admin-views.js gestisce "date" con un <input type=date>+
        <input type=time> nativo invece che testo libero, e la scrive SEMPRE non quotata (vedi
        A.save() li'). Non reintrodurre yq() su "date".
-     - "categories" e "tags" hanno gestione Jekyll dedicata (jekyllrb.com/docs/posts#tags-and-categories):
+     - "categories" e "tags" hanno gestione Jekyll dedicata [DOC Jekyll: wiki repo jekyll/jekyll, pagina "YAML Front Matter": "can be specified as a YAML list or a space-separated string"; verificata leggendo la pagina, NON l'ancora #tags-and-categories di jekyllrb.com che avevo citato senza averla aperta]:
        una stringa con spazi in front matter viene AUTOMATICAMENTE splittata in un array (es.
        "categories: sport cronaca" -> ["sport","cronaca"]). E' l'UNICA ragione per cui l'admin puo'
        permettersi di salvare piu' categorie come stringa unica separata da spazi: non serve
@@ -81,6 +82,7 @@ var A = (function () {
     var m = t.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
     return m ? { fm: m[1], body: m[2] } : { fm: '', body: t };
   }
+  /* fmGet/fmSet/fmDel lavorano riga per riga con regex sul front matter: assumono 'chiave: valore' su UNA riga. Il flag 'm' fa combaciare ^ e $ con ogni riga. La chiave finisce dentro una RegExp: passare solo nomi semplici (title, date, seo_title), MAI input dell'utente (un punto o un asterisco cambierebbero il significato). fmGet toglie le virgolette esterne; fmSet NON quota (il chiamante decide se usare yq). Un valore multilinea (children:, more_info: >) NON e' gestito qui: vedi kids() in admin-menu.js. [FONTE: front matter = YAML, jekyllrb.com/docs/front-matter] */
   function fmGet(fm, k) {
     var m = fm.match(new RegExp('^' + k + ':[ \\t]*(.*)$', 'm'));
     if (!m) return '';
@@ -92,7 +94,9 @@ var A = (function () {
     return (fm ? fm + '\n' : '') + line;
   }
   function fmDel(fm, k) { return fm.replace(new RegExp('^' + k + ':.*\\r?\\n?', 'm'), ''); }
+  /* yq: quota SOLO se serve. Caratteri che in YAML hanno significato speciale (: # [ ] { } & * ! | > % @ ') o spazi ai bordi -> stringa tra virgolette doppie, con \"\ interni escapati. Senza questo un titolo tipo 'Guida: come fare' rompe il front matter e il post sparisce dal build senza errori evidenti. NON usarla per date, booleani e numeri (vedi sez. 0c claude.md): quotati diventano stringhe. [FONTE: YAML 1.1, Psych di Jekyll] */
   function yq(s) { s = String(s); return /[:#'"\[\]{}&*!|>%@`]/.test(s) || /^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '\\"') + '"' : s; }
+  /* slugify: nome file di post/pagine. Toglie accenti (NFD), tiene solo a-z 0-9, il resto diventa '-'. Il nome del post deve restare 'YYYY-MM-DD-titolo.md': Jekyll ricava data e permalink da li'. [FONTE: al-folio docs/CUSTOMIZE.md, 'The name of the file must follow the format YYYY-MM-DD-title.md'] Attenzione: due titoli diversi possono dare lo stesso slug (es. 'Ciao!' e 'Ciao?'): il secondo sovrascriverebbe il primo se la data coincide. */
   function slugify(s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'senza-titolo'; }
   /* ORA DEI POST (punto critico, vedi admin/claude.md sez. 0e):
      - serverNow(): ora ESATTA = orologio PC + SKEW (scarto misurato contro l'header Date di GitHub).
@@ -154,6 +158,7 @@ var A = (function () {
       }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
     })();
   }
+  /* lastDeploy: stato del pallino all'apertura dell'admin (senza aver appena salvato). Legge le ultime run di Actions. Stessa regola di pollDeploy: 'Deploy site' + 'pages build and deployment' devono essere ENTRAMBE completed/success prima di dire 'online'. */
   function lastDeploy() { // stato iniziale all'apertura
     api('GET', '/actions/runs?branch=' + BR + '&per_page=10').then(function (r) {
       var p = (r.workflow_runs || []).filter(function (x) { return x.name === 'pages build and deployment'; })[0];
@@ -173,6 +178,7 @@ var A = (function () {
     }).catch(function (e) { $('loginMsg').textContent = errMsg(e); });
   }
   function logout() { localStorage.removeItem('adm_tok'); location.reload(); }
+  /* start: eseguita dopo il login. Qui si leggono da _config.yml (async) baseurl e timezone. Finche' la Promise non e' risolta BASEURL e SITE_TZ sono vuoti: vedi commento piu' sotto e sez. 0e claude.md. */
   function start() {
     $('login').style.display = 'none'; $('app').style.display = 'block';
     $('repoName').textContent = REPO; main = $('main'); go('dash');
