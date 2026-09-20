@@ -6,6 +6,11 @@
       "hooks": {
         "footer": "footer.liquid"
       }
+    },
+    "sitemap": {
+      "name": "Sitemap XML",
+      "enabled": true,
+      "hooks": {}
     }
   }
 }
