@@ -198,65 +198,92 @@ var A = (function () {
   function today() { var p = siteParts(serverNow()); return p.year + '-' + p.month + '-' + p.day; }
   function now() { var p = siteParts(serverNow()); return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute + ':00'; }
 
-  /* ---- deploy status: build ("Deploy site") + pubblicazione ("pages build and deployment") ----
-     Due workflow GitHub distinti, in sequenza: "Deploy site" (definito in questo repo,
-     .github/workflows/deploy.yml) builda il sito Jekyll; a build finita GitHub Pages lancia in
-     automatico un secondo workflow di sistema chiamato "pages build and deployment" che pubblica
-     l'artifact. Il sito e' online solo quando ENTRAMBI risultano "completed"/"success".
+  /* ---- PALLINO DEPLOY (in alto a destra) ----
+     COME SI PUBBLICA UN SITO SU GITHUB PAGES (build_type "legacy", sorgente branch gh-pages, vedi claude.md sez. 2):
+       1) push su main  -> workflow "Deploy site" (deploy.yml) builda Jekyll e SCRIVE il branch gh-pages
+       2) push su gh-pages -> GitHub lancia da solo "pages build and deployment" che pubblica il sito.
+     Le due run stanno su BRANCH DIVERSI: "Deploy site" su main, "pages build and deployment" su gh-pages.
 
-     FIX 2026-09-20: il pallino restava bloccato su "Deploy in corso..." anche a build finita.
-     Causa 1: t0 confrontava x.created_at (formato GitHub "YYYY-MM-DDTHH:MM:SSZ", SENZA millisecondi)
-     con new Date().toISOString() (SEMPRE con millisecondi, "...SSS Z"): un confronto tra stringhe di
-     formato diverso, quindi via epoch (Date.parse) invece che testo, niente piu' ambiguita'.
-     Causa 2 (la piu' probabile in pratica): per_page=10 e' troppo poco quando in una sessione si
-     fanno piu' salvataggi ravvicinati (ogni salvataggio genera 2 run: Deploy site + pages build and
-     deployment). Con 5-6 salvataggi in pochi minuti la run cercata puo' finire oltre la decima
-     posizione e sparire dal filtro: pollDeploy() continua a girare aspettando una run che nella
-     pagina 1 non c'e' piu'. per_page alzato a 30 sia qui che in lastDeploy(). */
+     BUG STORICO (perche' il pallino non e' mai diventato verde): il codice chiedeva le run con ?branch=main,
+     quindi la seconda run (branch gh-pages) NON veniva mai trovata e il pallino restava su "Pubblicazione..."
+     per sempre. Filtrare per nome+branch e' fragile: dipende dal nome di un workflow di sistema.
+
+     METODO CORRETTO, quello indicato dalla documentazione ufficiale per lo stato di pubblicazione:
+     GET /repos/{o}/{r}/pages/builds/latest  ->  { status, commit, error:{message} }
+       status: "queued" (richiesta, non iniziata) | "building" (in corso) | "built" (pubblicata) | "errored" (fallita)
+       commit: SHA del commit di gh-pages che quella build pubblica.
+     [FONTE: GitHub REST API docs, "Get latest Pages build" e sezione "Pages" (valori di status)]
+
+     ALGORITMO (pollDeploy):
+       a) all'avvio memorizza lo SHA della build "latest" attuale (base): e' la pubblicazione PRECEDENTE.
+       b) fase 1 "Build": aspetta che la run "Deploy site" del commit appena salvato finisca (se fallisce -> rosso).
+          Si identifica dal head_sha del commit che ha creato il salvataggio (headSha), NON dall'orario: niente
+          confronti fra orologi diversi (PC / GitHub), che era un'altra fonte di errori.
+       c) fase 2 "Pubblicazione": aspetta che /pages/builds/latest abbia un commit DIVERSO dalla base e status "built".
+          "errored" -> rosso con il messaggio d'errore di GitHub.
+     Se dopo ~6 minuti non e' finito: "Controlla su GitHub" (grigio), mai verde falso.
+     Un salvataggio che non tocca file monitorati da deploy.yml (vedi claude.md sez. 2) non lancia "Deploy site":
+     in quel caso dopo 40 secondi senza run si mostra "Nessun deploy necessario" invece di aspettare all'infinito. */
   var pt, pf;
   function setDeploy(cls, txt, pct) {
     var dot = $('deployDot'), t = $('deployTxt'), bar = $('deployBar');
     dot.className = 'dot ' + cls; t.textContent = txt; bar.style.width = pct + '%';
     if (pct >= 100) setTimeout(function () { bar.style.width = '0%'; }, 1500);
   }
+  /* buildLatest: ultima pubblicazione Pages, oppure null se il sito non e' mai stato pubblicato (404). */
+  function buildLatest() {
+    return api('GET', '/pages/builds/latest').catch(function (e) { if (e && e.status === 404) return null; throw e; });
+  }
+  /* headSha: SHA dell'ultimo commit del branch di lavoro (quello appena creato dal salvataggio). */
+  function headSha() {
+    return api('GET', '/commits/' + BR).then(function (c) { return c.sha; });
+  }
   function pollDeploy() {
     clearTimeout(pt); clearInterval(pf);
-    /* t0 in epoch (numero, non stringa): "5 secondi prima di adesso" per scartare run vecchie
-       quando si interroga /actions/runs (torna le piu' recenti, non solo quelle di QUESTO
-       salvataggio). "adesso" e' serverNow() (ora GitHub via header Date), NON new Date(): con un
-       PC dall'orologio sballato la run giusta finirebbe tra le "vecchie" e il pallino resterebbe
-       in attesa per sempre. Il confronto sotto usa Date.parse(x.created_at) per lo stesso motivo:
-       niente confronto tra stringhe di formato diverso (vedi commento sopra la funzione). */
-    var t0 = serverNow().getTime() - 5000, pct = 5, n = 0;
+    var pct = 5, n = 0, base = '', sha = '', vistaBuild = false;
     setDeploy('run', 'Deploy in corso...', pct);
+    // la barra avanza da sola fino all'85%: e' solo un segnale visivo, il verde arriva SOLO dai dati veri
     pf = setInterval(function () { if (pct < 85) { pct += pct < 40 ? 2 : 0.6; $('deployBar').style.width = pct + '%'; } }, 1500);
-    (function tick() {
-      api('GET', '/actions/runs?branch=' + BR + '&per_page=30').then(function (r) {
-        var runs = (r.workflow_runs || []).filter(function (x) { var c = Date.parse(x.created_at); return !isNaN(c) && c >= t0; });
-        var b = runs.filter(function (x) { return x.name === 'Deploy site'; })[0];
-        var p = runs.filter(function (x) { return x.name === 'pages build and deployment'; })[0];
-        if (b && b.status === 'completed' && b.conclusion !== 'success') { clearInterval(pf); setDeploy('ko', 'Build fallita', 100); return; }
-        if (p && p.status === 'completed') {
-          clearInterval(pf);
-          if (p.conclusion === 'success') setDeploy('ok', 'Sito aggiornato', 100); else setDeploy('ko', 'Pubblicazione fallita', 100);
-          return;
-        }
-        if (b && b.status === 'completed') $('deployTxt').textContent = 'Pubblicazione...';
-        else if (b) $('deployTxt').textContent = 'Build in corso...';
-        if (++n < 60) pt = setTimeout(tick, 5000); else { clearInterval(pf); setDeploy('', 'Controlla su GitHub', 0); }
-      }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
-    })();
+    Promise.all([buildLatest(), headSha()]).then(function (v) {
+      base = v[0] ? v[0].commit : ''; sha = v[1];
+      (function tick() {
+        Promise.all([
+          api('GET', '/actions/runs?head_sha=' + sha + '&per_page=10'),
+          buildLatest()
+        ]).then(function (v) {
+          var runs = v[0].workflow_runs || [], bl = v[1];
+          var b = runs.filter(function (x) { return x.name === 'Deploy site'; })[0];
+          if (b) vistaBuild = true;
+          // fase 1: build
+          if (b && b.status === 'completed' && b.conclusion !== 'success') { clearInterval(pf); setDeploy('ko', 'Build fallita', 100); return; }
+          // fase 2: pubblicazione (build nuova, diversa da quella di prima)
+          if (bl && bl.commit !== base) {
+            if (bl.status === 'built') { clearInterval(pf); setDeploy('ok', 'Sito aggiornato', 100); return; }
+            if (bl.status === 'errored') { clearInterval(pf); setDeploy('ko', 'Pubblicazione fallita', 100); $('deployTxt').title = (bl.error && bl.error.message) || ''; return; }
+            $('deployTxt').textContent = 'Pubblicazione...';
+          } else if (b && b.status === 'completed') {
+            $('deployTxt').textContent = 'Pubblicazione...';
+          } else if (b) {
+            $('deployTxt').textContent = 'Build in corso...';
+          } else if (!vistaBuild && n >= 8) {
+            // 8 giri x 5s = 40s senza nessuna run: il salvataggio non ha toccato file che fanno partire il deploy
+            clearInterval(pf); setDeploy('ok', 'Nessun deploy necessario', 100); return;
+          }
+          if (++n < 72) pt = setTimeout(tick, 5000); else { clearInterval(pf); setDeploy('', 'Controlla su GitHub', 0); }
+        }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
+      })();
+    }).catch(function () { clearInterval(pf); setDeploy('', 'Stato non disponibile', 0); });
   }
-  /* lastDeploy: stato del pallino all'apertura dell'admin (senza aver appena salvato). Legge le ultime run di Actions. Stessa regola di pollDeploy: 'Deploy site' + 'pages build and deployment' devono essere ENTRAMBE completed/success prima di dire 'online'. per_page alzato a 30 per lo stesso motivo di pollDeploy (vedi commento sopra). */
-  function lastDeploy() { // stato iniziale all'apertura
-    api('GET', '/actions/runs?branch=' + BR + '&per_page=30').then(function (r) {
-      var p = (r.workflow_runs || []).filter(function (x) { return x.name === 'pages build and deployment'; })[0];
-      if (!p) return setDeploy('', 'Nessun deploy', 0);
-      if (p.status !== 'completed') return pollDeploy();
-      setDeploy(p.conclusion === 'success' ? 'ok' : 'ko', p.conclusion === 'success' ? 'Sito aggiornato' : 'Ultimo deploy fallito', 0);
-    }).catch(function () { });
+  /* lastDeploy: stato del pallino all'apertura dell'admin (senza aver appena salvato).
+     Legge SOLO /pages/builds/latest: built -> verde, errored -> rosso, queued/building -> segue la pubblicazione. */
+  function lastDeploy() {
+    buildLatest().then(function (bl) {
+      if (!bl) return setDeploy('', 'Nessun deploy', 0);
+      if (bl.status === 'built') return setDeploy('ok', 'Sito aggiornato', 0);
+      if (bl.status === 'errored') return setDeploy('ko', 'Ultimo deploy fallito', 0);
+      pollDeploy();
+    }).catch(function () { setDeploy('', 'Stato non disponibile', 0); });
   }
-
   /* ---- login / nav ---- */
   function login() {
     TOK = $('tok').value.trim(); REPO = $('repo').value.trim();
