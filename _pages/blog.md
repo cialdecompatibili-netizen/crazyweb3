@@ -56,6 +56,16 @@ pagination:
 
 {% if cat_list.size > 0 or tag_list.size > 0 %}
 
+  <style>
+    /* Barra categorie/tag limitata a 2 righe: il taglio segue la larghezza (su mobile entrano meno voci). */
+    .tag-category-list ul { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; line-height: 1.6em; max-height: 3.2em; overflow: hidden; }
+    .tag-category-list ul li, .tag-category-list ul p { margin: 0; }
+    /* Schermi piccoli: meno voci (restano le piu' usate, l'ordine e' gia' per numero di post) cosi' non si taglia a meta'. */
+    @media (max-width: 768px) {
+      .tag-category-list ul { font-size: .9em; }
+      .tag-category-list ul li:nth-of-type(n+9), .tag-category-list ul li:nth-of-type(n+9) + p { display: none; }
+    }
+  </style>
   <div class="tag-category-list">
     <ul class="p-0 m-0">
       {% for item in cat_list limit: max_cats %}
