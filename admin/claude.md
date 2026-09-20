@@ -327,3 +327,17 @@ variabili, Jekyll data files con sottocartelle). Pushato (commit 752dd08, dopo r
 - Editor `_data/socials.yml` (email, scholar, whatsapp_number...).
 - Rendere attivo il bottone WhatsApp (link `https://wa.me/<numero>`), usando `whatsapp_number` di socials.yml.
 - Anteprima markdown (opzionale, leggera).
+
+### 11b. REGOLA UNIVERSALE "Configura" (vale per OGNI modulo, presente e futuro)
+Sessione 2026-09-20. Il bottone **Configura esiste SEMPRE** per ogni modulo installato, senza condizioni
+(prima compariva solo con `config_fields` nel manifest: un modulo senza campi sembrava non configurabile).
+La pagina Configura (`A.views.mdconfig` in `admin-modules.js`) e' identica per tutti e mostra, in ordine:
+1. **Info** (sempre): slug, stato, hook.
+2. **Indirizzi pubblici** (se il modulo ha `roots`, cioe' file in radice come `sitemap.xml`): URL completo + Copia + Apri.
+3. **Form** (se ha `config_fields`): un campo per voce. Tipi: `text`, `textarea`, `checkbox`, `image`.
+4. Se non ha ne' roots ne' campi: messaggio "nessuna impostazione", mai pagina vuota.
+Dove finiscono i valori: `_data/modules/<slug>.yml`, piatto, una riga per campo. Il modulo li legge come `include.data.<key>` (hook) o `site.data.modules.<slug>.<key>` (file root/).
+**A capo nei valori** (textarea): salvati come `\n` dentro virgolette doppie e ripristinati in lettura; nel Liquid si spezza con il filtro split sul carattere a-capo. Testato con backslash, virgolette, `:` e `#`.
+**Trappola registry:** `config_fields` e `roots` vengono copiati nel registry (`_data/modules_registry.yml`) all'INSTALLAZIONE. Un modulo installato prima di aggiungere `config_fields` al suo manifest non li ha: bisogna disinstallare e reinstallare, oppure aggiornare a mano la voce nel registry.
+**Trappola sitemap:** `site.documents` contiene anche i post, quindi va saltata la collezione `posts` (gia' coperta da `site.posts`) o ogni articolo compare 2 volte.
+Se scrivi un nuovo modulo: dichiara i campi in `config_fields` del `module.json` e leggili col default `| default:` nel template, cosi' funziona anche prima del primo salvataggio.

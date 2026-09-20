@@ -1,14 +1,12 @@
 {% comment %}
   Modulo di esempio: mostra come si scrive un modulo per il sistema hook (vedi admin/claude.md sez. 11
   e admin/admin-modules.js). Riceve include.slug, include.assets_url, include.data (da modules_hook.liquid).
-
-  FIX 2026-09-20: il banner non si vedeva. Causa: il footer del tema (footer.liquid, classe
-  fixed-bottom) e i bottoni flottanti (#back-to-top, #whatsapp-demo-btn) sono position:fixed con
-  z-index:1031 e stanno anche loro in fondo allo schermo (bottom:0): con z-index:1 questo banner
-  finiva SEMPRE sotto di loro, invisibile. Serve z-index maggiore di 1031. Usato 1040 (margine
-  comodo, non e' un valore Bootstrap "riservato" in questo tema: verificato che 1031 e' l'unico
-  z-index fisso usato nel sito, sez. 7 claude.md).
+  include.data = contenuto di _data/modules/<slug>.yml, scritto dal bottone Configura (config_fields del
+  module.json). Se la configurazione non e' mai stata salvata include.data e' vuoto: qui si usano i default.
+  z-index 1040: sopra footer fixed-bottom e bottoni flottanti del tema (1031), vedi claude.md sez. 7.
 {% endcomment %}
-<div style="position:fixed;left:0;right:0;bottom:0;z-index:1040;background:#2271b1;color:#fff;text-align:center;padding:6px;font-size:13px;">
-  Modulo di esempio attivo (slug: {{ include.slug }}) - installato dall'admin, sezione Moduli.
+{%- assign bn_text = include.data.text | default: "Modulo di esempio attivo - installato dall'admin, sezione Moduli." -%}
+{%- assign bn_color = include.data.color | default: "#2271b1" -%}
+<div style="position:fixed;left:0;right:0;bottom:0;z-index:1040;background:{{ bn_color }};color:#fff;text-align:center;padding:6px;font-size:13px;">
+  {{ bn_text }}
 </div>

@@ -80,10 +80,17 @@
      stringa quotati con A.yq() se servono caratteri speciali. Niente liste/oggetti annidati: se in
      futuro un modulo avesse bisogno di struttura piu' complessa, questo parser va rifatto (per ora
      nessun modulo lo richiede). */
+  /* A CAPO NEI VALORI (es. textarea con un percorso per riga): il formato e' "una riga per campo",
+     quindi gli a-capo vengono salvati come la sequenza letterale \n dentro una stringa tra virgolette
+     doppie (YAML la legge come a-capo vero, [FONTE: YAML 1.1 double-quoted scalars, Psych di Jekyll]),
+     e ripristinati in lettura. Nel Liquid del modulo, site.data.modules.<slug>.<campo> contiene gia'
+     gli a-capo veri: nel Liquid basta il filtro split con "\n" come separatore (vedi esempio in
+     modules_source/sitemap/root/sitemap.xml). Regola universale: vale per QUALSIASI campo di QUALSIASI modulo. */
   function parseFlatYaml(t) {
     var o = {}; (t || '').split(/\r?\n/).forEach(function (line) {
       var m = line.match(/^([a-zA-Z0-9_]+):[ \t]*(.*)$/);
-      if (m) o[m[1]] = m[2].trim().replace(/^"|"$/g, '').replace(/\\"/g, '"');
+      // Un solo passaggio sulle sequenze di escape (\\ \" \n): cosi' un backslash letterale prima di una "n" non diventa un a-capo.
+      if (m) o[m[1]] = m[2].trim().replace(/^"|"$/g, '').replace(/\\(\\|"|n)/g, function (_, c) { return c === 'n' ? '\n' : c; });
     });
     return o;
   }
@@ -91,7 +98,10 @@
     return fields.map(function (f) {
       var v = values[f.key] != null ? values[f.key] : (f.default || '');
       if (f.type === 'checkbox') return f.key + ': ' + (v === true || v === 'true' ? 'true' : 'false');
-      return f.key + ': ' + A.yq(String(v));
+      var s = String(v);
+      // Se c'e' un a-capo: forza le virgolette doppie e scrivi \n (una riga sola nel file).
+      if (/[\r\n]/.test(s)) return f.key + ': "' + s.replace(/\r/g, '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"';
+      return f.key + ': ' + A.yq(s);
     }).join('\n') + '\n';
   }
 
@@ -119,22 +129,16 @@
       if (!instSlugs.length) h += '<small>Nessun modulo installato.</small>';
       instSlugs.forEach(function (s) {
         var m = installed[s];
-        var hasCfg = m.config_fields && m.config_fields.length;
-        var hasRoots = m.roots && m.roots.length;
         h += '<div class="it"><span><b>' + esc(m.name) + '</b> <small>(' + esc(s) + ', hook: ' + esc(Object.keys(m.hooks || {}).join(', ') || '-') + ')</small></span>' +
           '<small class="' + (m.enabled ? 'ok' : 'ko') + '">' + (m.enabled ? 'Attivo' : 'Disattivo') + '</small> ' +
-          (hasCfg ? '<button class="btn sm" onclick="A.mdConfig(\'' + esc(s) + '\')">Configura</button> ' : '') +
+          /* REGOLA UNIVERSALE: il bottone Configura c'e' SEMPRE, per OGNI modulo installato (anche senza
+             config_fields e senza roots). La pagina Configura (A.views.mdconfig) decide cosa mostrare:
+             info del modulo (sempre), URL pubblici con Copia se ha roots, form se ha config_fields.
+             NON legare mai questo bottone a una condizione: un modulo senza campi resta comunque configurabile/ispezionabile. */
+          '<button class="btn sm" onclick="A.mdConfig(\'' + esc(s) + '\')">Configura</button> ' +
           '<button class="btn sm" onclick="A.mdToggle(\'' + esc(s) + '\')">' + (m.enabled ? 'Disattiva' : 'Attiva') + '</button> ' +
           '<button class="btn sm danger" onclick="A.mdUninstall(\'' + esc(s) + '\')">Disinstalla</button></div>';
-        // Riquadro URL per moduli con file root/ (es. sitemap.xml): niente pagina a parte, e' sempre visibile sotto la riga del modulo.
-        if (hasRoots) {
-          m.roots.forEach(function (path) {
-            var url = A.siteUrl() + path;
-            h += '<div class="it" style="padding-top:0"><small>URL pubblico (' + esc(path) + '): ' +
-              '<code id="mdurl_' + esc(s + '_' + path) + '">' + esc(url) + '</code></small> ' +
-              '<button class="btn sm" onclick="A.mdCopy(\'' + esc(s + '_' + path) + '\')">Copia</button></div>';
-          });
-        }
+        // L'URL pubblico dei file root/ non sta piu' qui: e' nella pagina Configura (A.views.mdconfig), uguale per tutti i moduli.
       });
       h += '</div>';
 
@@ -163,8 +167,36 @@
       return A.getFile(dataPath).catch(function (e) { if (e.status === 404) return { text: '', sha: '' }; throw e; });
     }).then(function (f) {
       var values = parseFlatYaml(f.text), sha = f.sha;
-      var h = '<h2>Configura: ' + esc(manifest.name) + '</h2><div class="card">';
-      (manifest.config_fields || []).forEach(function (fld) {
+      var fields = manifest.config_fields || [], roots = manifest.roots || [];
+      var h = '<h2>Configura: ' + esc(manifest.name) + '</h2>';
+      /* PAGINA CONFIGURA UNIVERSALE (vale per OGNI modulo, vedi regola in A.views.modules):
+         1) scheda INFO, sempre: slug, stato, hook. 2) scheda URL, solo se il modulo ha roots (file in
+         radice come sitemap.xml): URL completo + Copia. 3) form, solo se ha config_fields.
+         Se non ha ne' roots ne' campi, lo dice: cosi' la pagina non sembra mai rotta o vuota. */
+      h += '<div class="card"><small><b>Slug:</b> <code>' + esc(slug) + '</code> &middot; <b>Stato:</b> ' + (manifest.enabled ? 'Attivo' : 'Disattivo') +
+        ' &middot; <b>Hook:</b> ' + esc(Object.keys(manifest.hooks || {}).join(', ') || 'nessuno') + '</small></div>';
+      if (roots.length) {
+        h += '<div class="card"><b>Indirizzi pubblici</b><br><small>Copia e incolla dove serve (es. Google Search Console).</small>';
+        roots.forEach(function (path) {
+          var id = slug + '_' + path;
+          h += '<div class="it" style="padding:6px 0"><code id="mdurl_' + esc(id) + '">' + esc(A.siteUrl() + path) + '</code> ' +
+            '<button class="btn sm" onclick="A.mdCopy(\'' + esc(id) + '\')">Copia</button> ' +
+            '<a class="btn sm" href="' + esc(A.siteUrl() + path) + '" target="_blank" rel="noopener">Apri</a></div>';
+        });
+        h += '</div>';
+      }
+      if (!fields.length && !roots.length) {
+        h += '<div class="card"><small>Questo modulo non ha impostazioni da modificare: si comporta sempre allo stesso modo. ' +
+          'Puoi solo attivarlo, disattivarlo o disinstallarlo dalla lista Moduli.</small> ' +
+          '<div style="margin-top:10px"><button class="btn" onclick="A.go(\'modules\')">Indietro</button></div></div>';
+        M().innerHTML = h; return;
+      }
+      if (!fields.length) {
+        h += '<div style="margin-top:10px"><button class="btn" onclick="A.go(\'modules\')">Indietro</button></div>';
+        M().innerHTML = h; return;
+      }
+      h += '<div class="card">';
+      fields.forEach(function (fld) {
         var v = values[fld.key] != null ? values[fld.key] : (fld.default || '');
         h += '<label>' + esc(fld.label || fld.key) + '</label>';
         if (fld.type === 'textarea') {

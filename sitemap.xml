@@ -13,24 +13,66 @@ sitemap: false
   di tutte le collezioni con output true: projects, news, teachings, books - una collezione nuova
   entra da sola, non serve elencarla). Fonte: DOC Jekyll, jekyllrb.com/docs/variables.
   Esclude pagine con redirect, con sitemap false nel front matter, e questa stessa pagina.
+
+  CONFIGURAZIONE (bottone Configura nell'admin, scrive _data/modules/sitemap.yml):
+    exclude_paths    un percorso per riga; un URL viene escluso se CONTIENE uno di questi testi
+                     (es. "/tag/" esclude /blog/tag/math/). Default: /admin/ /_pages/ /tag/ /category/ /page/
+    include_lastmod  true/false: stampa <lastmod> per posts e documenti quando hanno una data.
+  Se il file di configurazione non esiste ancora (mai salvato), valgono i default qui sotto.
+  I valori con piu' righe arrivano gia' con gli a-capo veri (vedi parseFlatYaml in admin-modules.js),
+  quindi split: "\n" e' il separatore corretto.
 {%- endcomment -%}
+{%- assign cfg = site.data.modules.sitemap -%}
+{%- if cfg.exclude_paths -%}
+  {%- assign sm_excl = cfg.exclude_paths | split: "\n" -%}
+{%- else -%}
+  {%- assign sm_excl = "/admin/|/_pages/|/tag/|/category/|/page/" | split: "|" -%}
+{%- endif -%}
+{%- if cfg.include_lastmod == false -%}
+  {%- assign sm_lastmod = false -%}
+{%- else -%}
+  {%- assign sm_lastmod = true -%}
+{%- endif -%}
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 {%- for p in site.pages -%}
-  {%- unless p.redirect or p.sitemap == false or p.url == page.url -%}
+  {%- if p.redirect or p.sitemap == false or p.url == page.url -%}{%- continue -%}{%- endif -%}
+  {%- assign sm_skip = false -%}
+  {%- for x in sm_excl -%}
+    {%- assign xt = x | strip -%}
+    {%- if xt != "" and p.url contains xt -%}{%- assign sm_skip = true -%}{%- endif -%}
+  {%- endfor -%}
+  {%- unless sm_skip -%}
   <url>
     <loc>{{ p.url | absolute_url }}</loc>
   </url>
   {%- endunless -%}
 {%- endfor -%}
 {%- for post in site.posts -%}
+  {%- assign sm_skip = false -%}
+  {%- for x in sm_excl -%}
+    {%- assign xt = x | strip -%}
+    {%- if xt != "" and post.url contains xt -%}{%- assign sm_skip = true -%}{%- endif -%}
+  {%- endfor -%}
+  {%- unless sm_skip -%}
   <url>
     <loc>{{ post.url | absolute_url }}</loc>
+    {%- if sm_lastmod %}
     <lastmod>{{ post.date | date_to_xmlschema }}</lastmod>
+    {%- endif %}
   </url>
+  {%- endunless -%}
 {%- endfor -%}
 {%- for doc in site.documents -%}
-  {%- unless doc.sitemap == false -%}
+  {%- if doc.sitemap == false -%}{%- continue -%}{%- endif -%}
+  {%- comment -%} site.documents INCLUDE anche i post (gia' elencati sopra da site.posts): senza questo salto ogni articolo compariva 2 volte. {%- endcomment -%}
+  {%- if doc.collection == "posts" -%}{%- continue -%}{%- endif -%}
+  {%- assign sm_skip = false -%}
+  {%- for x in sm_excl -%}
+    {%- assign xt = x | strip -%}
+    {%- if xt != "" and doc.url contains xt -%}{%- assign sm_skip = true -%}{%- endif -%}
+  {%- endfor -%}
+  {%- unless sm_skip -%}
   <url>
     <loc>{{ doc.url | absolute_url }}</loc>
   </url>
