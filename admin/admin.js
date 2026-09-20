@@ -1,5 +1,13 @@
-/* Admin crazyweb3 - al-folio v1. Vedi admin/claude.md */
+/* Admin - al-folio v1. Vedi admin/claude.md */
 var A = (function () {
+  /* CHIAVI DEL BROWSER (localStorage) - regola "zero hardcoded" + "piu' siti sullo stesso dominio":
+     il browser tiene i dati PER DOMINIO, non per sito. Due siti GitHub Pages dello stesso utente
+     (utente.github.io/sito-a/ e utente.github.io/sito-b/) hanno lo STESSO dominio: con chiavi fisse (adm_tok, adm_repo)
+     il secondo admin trovava token e repo del primo e SCRIVEVA SUL REPO SBAGLIATO. Bug reale visto tra due siti clonati uno dall'altro.
+     Soluzione: il nome della chiave contiene il percorso dell'admin (location.pathname senza il nome del file),
+     che e' diverso per ogni sito e non va scritto a mano. Es. /nome-repo/admin/ -> adm_tok:/nome-repo/admin/
+     [FONTE: MDN Web Storage API, localStorage e' separato per origine (schema+host+porta), non per percorso.] */
+  var SCOPE = location.pathname.replace(/[^\/]*$/, ''), K_TOK = 'adm_tok:' + SCOPE, K_REPO = 'adm_repo:' + SCOPE;
   var TOK = '', REPO = '', BR = 'main', main, busy = false, BASEURL = '';
   /* SKEW = (ora server GitHub) - (ora del PC), in millisecondi. Aggiornato a ogni chiamata API.
      SITE_TZ = fuso del sito, letto da "timezone:" in _config.yml (mai scritto qui: vedi sez. 0 claude.md).
@@ -254,11 +262,11 @@ var A = (function () {
     TOK = $('tok').value.trim(); REPO = $('repo').value.trim();
     if (!TOK || !REPO) { $('loginMsg').textContent = 'Inserisci token e repo'; return; }
     api('GET', '').then(function (r) {
-      localStorage.setItem('adm_tok', TOK); localStorage.setItem('adm_repo', REPO);
+      localStorage.setItem(K_TOK, TOK); localStorage.setItem(K_REPO, REPO);
       BR = r.default_branch || 'main'; start();
     }).catch(function (e) { $('loginMsg').textContent = errMsg(e); });
   }
-  function logout() { localStorage.removeItem('adm_tok'); location.reload(); }
+  function logout() { localStorage.removeItem(K_TOK); location.reload(); }
   /* start: eseguita dopo il login. Qui si leggono da _config.yml (async) baseurl e timezone. Finche' la Promise non e' risolta BASEURL e SITE_TZ sono vuoti: vedi commento piu' sotto e sez. 0e claude.md. */
   function start() {
     $('login').style.display = 'none'; $('app').style.display = 'block';
@@ -271,7 +279,7 @@ var A = (function () {
     /* baseurl (letto sotto, async) e' la variabile Jekyll standard che al-folio usa per generare
        i link del sito (vedi al-folio docs/CUSTOMIZE.md, sezione "Configuration": "the url and
        baseurl settings are used to generate the links of the website"). E' l'unica fonte di
-       verita' per il sottopercorso del sito (qui /crazyweb3): non va MAI hardcodato altrove
+       verita' per il sottopercorso del sito (es. /nome-repo): non va MAI hardcodato altrove
        nell'admin (vedi claude.md sez. 0, filosofia zero-hardcoded). BASEURL e' letto qui in modo
        ASINCRONO (arriva dopo start()), quindi qualsiasi modulo che usa A.baseurl() nel PRIMO
        render dopo il login puo' trovarlo ancora '' per una frazione di secondo. Non e' un bug
@@ -279,8 +287,8 @@ var A = (function () {
        dopo il caricamento), ma se in futuro serve BASEURL per costruire qualcosa a schermata gia'
        pronta, aspettare questa Promise invece di leggere A.baseurl() a freddo. */
     getFile('_config.yml').then(function (f) {
-      /* baseurl: la riga in _config.yml ha un commento in coda ("baseurl: /crazyweb3 # the subpath...").
-         Va tolto, altrimenti BASEURL diventa "/crazyweb3 # the subpath of your site..." e ogni percorso
+      /* baseurl: la riga in _config.yml ha un commento in coda ("baseurl: /nome-repo # the subpath...").
+         Va tolto, altrimenti BASEURL diventa "/nome-repo # the subpath of your site..." e ogni percorso
          costruito con A.baseurl() (bottone Img, immagini) e' sbagliato. Trovato col test dal vivo col
          token reale: i test sulle singole funzioni non lo vedevano. Stessa regola del timezone sotto:
          il valore finisce al primo spazio o '#'. Un baseurl vuoto ("baseurl:" o "baseurl: ''") resta ''. */
@@ -323,7 +331,17 @@ var A = (function () {
   /*__MODULI__*/
 
   window.addEventListener('load', function () {
-    TOK = localStorage.getItem('adm_tok') || ''; REPO = localStorage.getItem('adm_repo') || '';
+    TOK = localStorage.getItem(K_TOK) || ''; REPO = localStorage.getItem(K_REPO) || '';
+    /* REPO PRECOMPILATO DAL SITO STESSO (nessun nome scritto nel codice, principio guida sez. 00):
+       un sito GitHub Pages vive su <utente>.github.io/<repo>/, quindi utente e repo si ricavano
+       dall'indirizzo in cui l'admin e' aperto: host = utente.github.io, primo pezzo del percorso = repo.
+       Vale SOLO se e' gia' salvato niente per questo sito, e solo per host *.github.io (con un dominio
+       personalizzato non si puo' dedurre: il campo resta vuoto e lo compila l'utente).
+       [FONTE: GitHub Docs, URL dei siti Pages 'project site': https://<utente>.github.io/<repo>/] */
+    if (!REPO) {
+      var hm = location.hostname.match(/^([^.]+)\.github\.io$/i), pm = location.pathname.match(/^\/([^\/]+)\//);
+      if (hm && pm && pm[1] !== 'admin') REPO = hm[1] + '/' + pm[1]; // pm[1]=='admin': sito radice <utente>.github.io, il repo non e' nel percorso -> campo vuoto, lo compila l'utente
+    }
     $('repo').value = REPO;
     if (TOK) { api('GET', '').then(function (r) { BR = r.default_branch || 'main'; start(); }).catch(function () { $('login').style.display = 'flex'; }); }
   });
