@@ -91,15 +91,7 @@
   A.views.menu = function () {
     return load().then(function () {
       var top = PG.filter(function (p) { return p.nav; }).sort(function (a, b) { return (a.order || 99) - (b.order || 99); });
-      var home = PG.filter(function (p) { return p.permalink === '/'; })[0];
-      var h = '<h2>Menu</h2><div class="card"><div id="mn">';
-      /* Home = about.md (permalink '/'). Il tema al-folio la scrive a mano nel template header.liquid
-         come prima voce, FUORI dal ciclo ordinato per nav_order: quindi qui ha titolo modificabile
-         come le altre righe ma nessun campo ordine (non avrebbe effetto). */
-      if (home) {
-        h += '<div class="mrow" data-n="' + esc(home.name) + '" data-home="1"><input class="m_t" value="' + esc(home.title) + '"><span class="m_o" style="width:70px"></span>' +
-          '<span>' + esc(home.permalink) + '</span><span></span></div>';
-      }
+      var h = '<h2>Menu</h2><div class="card"><p>Cambia titolo e ordine delle voci (numero piu basso = piu a sinistra). Le pagine "Dropdown" sono submenu.</p><div id="mn">';
       top.forEach(function (p, i) {
         h += '<div class="mrow" data-n="' + esc(p.name) + '"><input class="m_t" value="' + esc(p.title) + '"><input class="m_o" type="number" value="' + (p.order || (i + 1)) + '">' +
           '<span>' + (p.dropdown ? 'Dropdown' : esc(p.permalink)) + '</span><button class="btn sm danger" onclick="A.mnOff(\'' + esc(p.name) + '\')">Togli</button></div>';
@@ -112,7 +104,7 @@
         }
       });
       h += '</div><p><button class="btn primary" onclick="A.mnSave()">Salva menu</button></p></div>';
-      var off = PG.filter(function (p) { return !p.nav && p.permalink && p.permalink !== '/' && !/404/.test(p.permalink); });
+      var off = PG.filter(function (p) { return !p.nav && p.permalink && !/404/.test(p.permalink); });
       if (off.length) {
         h += '<div class="card"><h3>Pagine fuori dal menu</h3><div class="list">';
         off.forEach(function (p) { h += '<div class="it"><span>' + esc(p.title || p.name) + '<small>' + esc(p.permalink) + '</small></span><button class="btn sm" onclick="A.mnOn(\'' + esc(p.name) + '\')">Aggiungi al menu</button></div>'; });
@@ -159,7 +151,7 @@
       (function (r) {
         var n = r.getAttribute('data-n'), p = PG.filter(function (x) { return x.name === n; })[0], fm = p.fm;
         fm = A.fmSet(fm, 'title', A.yq(r.querySelector('.m_t').value.trim()));
-        if (!r.getAttribute('data-home')) fm = A.fmSet(fm, 'nav_order', r.querySelector('.m_o').value || '20');
+        fm = A.fmSet(fm, 'nav_order', r.querySelector('.m_o').value || '20');
         if (p.dropdown) {
           var box = document.querySelector('.sub[data-d="' + n + '"]'), ks = [];
           Array.prototype.forEach.call(box.querySelectorAll('.k'), function (k) {
