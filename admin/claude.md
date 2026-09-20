@@ -260,6 +260,64 @@ Campi `about.md`: `subtitle` (HTML ok), `profile.align/image/image_circular/more
 - 2026-09-20 (8): BUG trovato e fisso: in `A.save()` di `admin-views.js`, il campo `date` (posts/news) passava per `A.yq()` come tutti gli altri campi testo, che lo quota se contiene spazi (`date: "2026-09-20 14:47:00"`). Una data quotata e' una stringa YAML per Jekyll, non un valore data: puo' rompere ordinamento cronologico e la regola `future: false` (default Jekyll, nessun `future:` in `_config.yml`) puo' escludere il post dalla build se il confronto data avviene in UTC (build gira su GitHub Actions, non ora locale). Fix: `date` ora passa non quotata come `inline`/`importance`. Pushato (commit a0156b0). **Da rifare a mano sui post gia' creati con la data quotata** (aprirli in admin e risalvare, oppure editarli su GitHub togliendo le virgolette da `date:`).
 - 2026-09-20 (9): risolto alla radice il rischio "data scritta male" (come WordPress: niente testo libero). Il campo Data (posts/news) e' ora `dateField()`: `<input type="date">` + `<input type="time">` nativi del browser (calendario/orologio grafico) invece di un `<input type="text">` dove si poteva digitare qualsiasi formato. `parseDate()` scompone il valore YAML esistente in aprire-modifica; `A.save()` lo ricompone sempre nel formato corretto `YYYY-MM-DD HH:MM:SS[ +ZZZZ]`, non quotato. Corretta anche a mano la data gia' quotata di `_posts/2026-09-20-nuovo-post-prova.md`. Pushato (commit 3ec8a40).
 
+## 11. Sistema MODULI (hook stile PrestaShop, NON e' al-folio ufficiale)
+Aggiunto per estendere il sito senza toccare il tema. Verificato che al-folio v1.x ha un proprio
+"plugin ecosystem" ma sono gem Ruby wired in Gemfile/_config.yml [DOC al-folio, docs/CUSTOMIZE.md
+sez. "Plugin ecosystem (v1.x)"]: e' un concetto diverso, non applicabile a runtime da admin senza
+build locale. Questo sistema e' quindi COSTRUITO SU MISURA, non un pattern al-folio.
+
+**Logica (auto-discovery):** una cartella in `modules_source/<slug>/` col suo `module.json` (nel
+repo, pushata a mano o da Claude) e' un modulo "disponibile". L'admin (sezione Moduli) la legge via
+GitHub API e mostra un bottone Installa: copia i file nei posti giusti e scrive il registry, in UN
+commit atomico (`A.commitFiles`). Da li' si Attiva/Disattiva/Disinstalla senza toccare codice.
+
+**File coinvolti:**
+- `_includes/modules_hook.liquid`: stampa, per l'hook richiesto (`head`|`footer`), l'include di ogni
+  modulo installato e attivo. Chiamato da `_includes/metadata.liquid` (hook='head') e
+  `_includes/footer.liquid` (hook='footer'). Sintassi `{% include {{ variabile }} %}` verificata su
+  [DOC Jekyll, jekyllrb.com/docs/includes, sez. "Using variables names for the include file"].
+- `_data/modules_registry.yml`: JSON dentro un file .yml (deciso in sessione precedente, migliore
+  di un parser YAML a mano): `{ "installed": { "<slug>": {name,enabled,hooks{}} } }`. Il nome .yml
+  (non .json) serve a far ripartire deploy.yml (parte su *.yml, non su *.json soli, vedi sez. 2).
+- `_data/modules/<slug>.yml`: dati/impostazioni opzionali del singolo modulo, letti da Jekyll come
+  `site.data.modules.<slug>` [DOC Jekyll, jekyllrb.com/docs/datafiles: le sottocartelle di _data
+  diventano namespace annidati in site.data].
+- `admin/admin-modules.js`: vista "Moduli", install/toggle/uninstall.
+- `modules_source/<slug>/`: sorgente dei moduli disponibili (module.json + file per hook + assets/
+  + data.yml opzionali). Presente un modulo di esempio, `esempio-banner`.
+
+**Standard di un modulo** (in `modules_source/<slug>/`):
+```
+module.json   { "name": "...", "hooks": { "head": "head.liquid", "footer": "footer.liquid" } }
+head.liquid, footer.liquid, ...   codice Liquid per ogni hook dichiarato (obbligatori se citati)
+assets/...    opzionale -> installato in assets/modules/<slug>/
+data.yml      opzionale -> installato in _data/modules/<slug>.yml
+```
+Il modulo nel suo liquid riceve `include.slug`, `include.assets_url` (con baseurl gia' applicato),
+`include.data` (contenuto di data.yml, puo' essere vuoto).
+
+**Punti critici (da rileggere prima di toccare questi file):**
+- Se un hook dichiarato in module.json non ha il file corrispondente: Jekyll fallisce l'intera
+  build ("Could not locate the included file"). `A.mdInstall` controlla PRIMA di scrivere.
+  Se succede lo stesso (file cancellato a mano dal repo): Moduli > Disattiva/Disinstalla, i commit
+  funzionano anche a build rotta (non serve un deploy che passi per editare il registry).
+- Installazione = 1 solo commit (`A.commitFiles`, esposta da admin.js in `api_` apposta per questo):
+  se andasse a meta' con putFile in sequenza, resterebbero file orfani copiati ma non registrati.
+- Asset binari: passati a commitFiles col campo `b64` gia' cosi' come arrivano dalla Contents API
+  (che li restituisce gia' in base64), MAI decodificati/ricodificati (rischio corruzione, stesso
+  principio di A.upload in admin-media.js).
+- Disinstallare toglie solo la riga dal registry (il modulo smette di essere agganciato): i file
+  restano nel repo apposta, per permettere reinstallazione immediata senza perdita dati.
+- `SRC`/`REG`/`INC`/`IMG`/`DATA` in admin-modules.js sono percorsi FISSI del sistema moduli stesso
+  (non baseurl/repo dell'utente): non violano la regola zero-hardcoded di sez. 0, sono lo standard
+  della funzionalita', come '_posts/' lo e' per gli articoli.
+
+**Log:** 2026-09-20: creato modules_hook.liquid, aggancio in metadata.liquid (head, gia' presente)
+e footer.liquid (footer, aggiunto ora), admin-modules.js (vista + install/toggle/uninstall atomico
+via commitFiles, esposta da admin.js), voce sidebar "Moduli", modulo di esempio esempio-banner.
+Verificato su documentazione ufficiale (al-folio CUSTOMIZE.md plugin ecosystem, Jekyll includes con
+variabili, Jekyll data files con sottocartelle). Pushato (commit 752dd08, dopo rebase su a2e33f9).
+
 ## 10. Prossimi step / idee
 - Sezione Corsi (`_teachings`) e Libri (`_books`) se servono.
 - Editor `_data/socials.yml` (email, scholar, whatsapp_number...).
