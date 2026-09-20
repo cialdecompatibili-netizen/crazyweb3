@@ -141,6 +141,7 @@ Campi `about.md`: `subtitle` (HTML ok), `profile.align/image/image_circular/more
 
 ## 9. Log sessioni
 - 2026-09-20: creato repo, al-folio vergine, Pages da gh-pages, fix footer/torna-su, bottone WhatsApp demo, studio docs, sviluppo admin da zero.
+- 2026-09-20 (2): topbar sempre visibile su desktop (prima `display:none`) con link Sito/Deploy, testo stato e barra progresso (`.dbar`). In `admin.js`: `start()` ora valorizza `siteLink`/`deployLink` con URL reali (prima restavano `href="#"`) e chiama `lastDeploy()` invece di `pollDeploy()` all'apertura (mostra subito lo stato reale invece di una falsa animazione "in corso"). La barra parte davvero solo dopo un salvataggio (`putFile`/`delFile` chiamano `pollDeploy()`). Pushato (commit 219beb2).
 
 ## 10. Prossimi step / idee
 - Sezione Corsi (`_teachings`) e Libri (`_books`) se servono.
