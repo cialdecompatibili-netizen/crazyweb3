@@ -58,14 +58,27 @@
   };
   Object.keys(C).forEach(function (k) { collection(C[k]); });
 
-  /* campi per collezione: [nome, etichetta, tipo] - tipo 'cat' = dropdown categorie esistenti + nuova */
+  /* campi per collezione: [nome, etichetta, tipo] - 'cat' = dropdown categorie, 'date' = selettore data+ora nativo */
   var FIELDS = {
-    posts: [['title', 'Titolo', 'text'], ['date', 'Data (YYYY-MM-DD HH:MM:SS)', 'text'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'cat']],
+    posts: [['title', 'Titolo', 'text'], ['date', 'Data', 'date'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'cat']],
     projects: [['title', 'Titolo', 'text'], ['description', 'Descrizione', 'text'], ['img', 'Immagine (es. assets/img/12.jpg)', 'text'], ['importance', 'Ordine (numero)', 'text'], ['category', 'Categoria (deve stare in display_categories di projects)', 'cat'], ['redirect', 'Redirect esterno (opzionale)', 'text']],
-    news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data (YYYY-MM-DD HH:MM:SS -0400)', 'text'], ['inline', 'Inline (true = solo riga in home)', 'text']]
+    news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data', 'date'], ['inline', 'Inline (true = solo riga in home)', 'text']]
   };
   var LAYOUT = { posts: 'post', projects: 'page', news: 'post' };
   var cur = {};
+
+  /* parse "YYYY-MM-DD HH:MM:SS[ +ZZZZ]" -> {d:'YYYY-MM-DD', t:'HH:MM', tz:'+ZZZZ'|''} */
+  function parseDate(v) {
+    var m = (v || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?\s*([+-]\d{4})?/);
+    if (!m) return { d: '', t: '', tz: '' };
+    return { d: m[1], t: m[2], tz: m[3] || '' };
+  }
+  function dateField(fd, v) {
+    var id = 'f_' + fd[0], p = parseDate(v);
+    return '<label>' + fd[1] + '</label><div class="row"><input type="date" id="' + id + '_d" value="' + esc(p.d) + '">' +
+      '<input type="time" id="' + id + '_t" value="' + esc(p.t) + '" step="60"></div>' +
+      '<input type="hidden" id="' + id + '_tz" value="' + esc(p.tz) + '">';
+  }
 
   /* legge tutte le categorie gia' usate in una collezione (per il dropdown) */
   function loadCats(key) {
@@ -107,6 +120,7 @@
         if (!f && fd[0] === 'inline') v = 'true';
         if (!f && fd[0] === 'importance') v = '1';
         if (fd[2] === 'cat') h += catField(fd, v);
+        else if (fd[2] === 'date') h += dateField(fd, v);
         else h += '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
       });
       h += '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea>' +
@@ -123,6 +137,9 @@
       if (fd[2] === 'cat') {
         var sel = $('f_' + k).value;
         v = (sel === '__new__' ? $('f_' + k + '_new').value : sel).trim();
+      } else if (fd[2] === 'date') {
+        var d = $('f_' + k + '_d').value, t = $('f_' + k + '_t').value || '00:00', tz = $('f_' + k + '_tz').value;
+        v = d ? d + ' ' + t + ':00' + (tz ? ' ' + tz : '') : '';
       } else v = $('f_' + k).value.trim();
       if (v === '') { if (k !== 'title' || key !== 'news') fm = k === 'img' ? A.fmSet(fm, k, '') : A.fmDel(fm, k); else fm = A.fmDel(fm, k); return; }
       if (k === 'inline' || k === 'importance' || k === 'date') fm = A.fmSet(fm, k, v);
@@ -131,7 +148,7 @@
     if (key === 'news' && !/^related_posts:/m.test(fm)) fm = A.fmSet(fm, 'related_posts', 'false');
     if (!name) {
       var t = $('f_title').value.trim();
-      if (key === 'posts') { if (!t) return A.toast('Titolo obbligatorio', true); name = $('f_date').value.slice(0, 10) + '-' + A.slugify(t) + '.md'; }
+      if (key === 'posts') { if (!t) return A.toast('Titolo obbligatorio', true); name = $('f_date_d').value + '-' + A.slugify(t) + '.md'; }
       else if (key === 'projects') { if (!t) return A.toast('Titolo obbligatorio', true); name = A.slugify(t) + '.md'; }
       else { return A.getDir('_news').then(function (l) { var n = 1; l.forEach(function (x) { var m = x.name.match(/announcement_(\d+)/); if (m) n = Math.max(n, +m[1] + 1); }); doPut('announcement_' + n + '.md'); }); }
     }
