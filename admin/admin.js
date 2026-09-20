@@ -4,7 +4,7 @@ var A = (function () {
   /* SKEW = (ora server GitHub) - (ora del PC), in millisecondi. Aggiornato a ogni chiamata API.
      SITE_TZ = fuso del sito, letto da "timezone:" in _config.yml (mai scritto qui: vedi sez. 0 claude.md).
      Ordine di fiducia per l'ora dei post: GitHub (Date header) > orologio PC. Il fuso NON viene dal PC. */
-  var SKEW = 0, SITE_TZ = '';
+  var SKEW = 0, SITE_TZ = '', SITEURL = '';
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var b64e = function (s) { return btoa(unescape(encodeURIComponent(s))); };
@@ -264,7 +264,8 @@ var A = (function () {
     $('login').style.display = 'none'; $('app').style.display = 'block';
     $('repoName').textContent = REPO; main = $('main'); go('dash');
     var parts = REPO.split('/'), user = parts[0], repoName = parts[1];
-    $('siteLink').href = 'https://' + user + '.github.io/' + repoName + '/';
+    SITEURL = 'https://' + user + '.github.io/' + repoName + '/'; // vedi A.siteUrl(): usato dai moduli con file root/ (es. sitemap.xml) per mostrare l'URL pubblico completo
+    $('siteLink').href = SITEURL;
     $('deployLink').href = 'https://github.com/' + REPO + '/actions';
     lastDeploy();
     /* baseurl (letto sotto, async) e' la variabile Jekyll standard che al-folio usa per generare
@@ -317,7 +318,7 @@ var A = (function () {
   var api_ = { $: $, esc: esc, toast: toast, getDir: getDir, getFile: getFile, putFile: putFile, delFile: delFile,
     commitFiles: commitFiles, splitFM: splitFM, fmGet: fmGet, fmSet: fmSet, fmDel: fmDel, yq: yq, slugify: slugify,
     today: today, now: now, wrap: wrap, views: views, go: go, main: function () { return main; }, errMsg: errMsg, api: api,
-    baseurl: function () { return BASEURL; } };
+    baseurl: function () { return BASEURL; }, siteUrl: function () { return SITEURL; } };
 
   /*__MODULI__*/
 
