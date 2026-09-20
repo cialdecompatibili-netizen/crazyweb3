@@ -2,6 +2,13 @@
 
 > Leggi questo file PRIMA di toccare `admin/`. Aggiornalo a fine sessione (edit chirurgici, mai riscrivere tutto).
 
+## 0. Filosofia: zero hardcoded, tutto dinamico
+L'admin deve essere **copiabile su qualsiasi clone/sito senza modificare il codice**. Regole:
+- Mai scrivere in JS/HTML/CSS nomi di repo, utenti GitHub, `baseurl`, URL del sito. Vanno sempre letti a runtime (`REPO`/`TOK` da login+localStorage, `baseurl` da `_config.yml` via `A.baseurl()`).
+- Nessun valore di default che punti a un repo specifico (niente fallback tipo `'utente/repo'` nel codice: se manca, il campo resta vuoto e lo compila l'utente al login).
+- Se serve un path assoluto verso il sito (immagini, link), costruirlo con la variabile letta dinamicamente, mai concatenando una stringa fissa.
+- Prima di ogni salvataggio di codice admin, cercare hardcoded residui: `Select-String -Path admin*.js -Pattern "crazyweb3|cialdecompatibili"` (adattare il pattern al progetto) e ripulire quanto trovato, tranne commenti innocui.
+
 ## 1. Progetto
 - Repo: `cialdecompatibili-netizen/crazyweb3` (branch `main`), sito: https://cialdecompatibili-netizen.github.io/crazyweb3/
 - Base: al-folio **v1.x VERGINE** (alshedivat), tema = gem `al_folio_core` (NON e' in repo: niente _layouts/_sass).
@@ -142,6 +149,7 @@ Campi `about.md`: `subtitle` (HTML ok), `profile.align/image/image_circular/more
 ## 9. Log sessioni
 - 2026-09-20: creato repo, al-folio vergine, Pages da gh-pages, fix footer/torna-su, bottone WhatsApp demo, studio docs, sviluppo admin da zero.
 - 2026-09-20 (2): topbar sempre visibile su desktop (prima `display:none`) con link Sito/Deploy, testo stato e barra progresso (`.dbar`). In `admin.js`: `start()` ora valorizza `siteLink`/`deployLink` con URL reali (prima restavano `href="#"`) e chiama `lastDeploy()` invece di `pollDeploy()` all'apertura (mostra subito lo stato reale invece di una falsa animazione "in corso"). La barra parte davvero solo dopo un salvataggio (`putFile`/`delFile` chiamano `pollDeploy()`). Pushato (commit 219beb2).
+- 2026-09-20 (3): aggiunta sez. 0 "zero hardcoded, tutto dinamico". Rimossi 2 hardcoded reali: fallback `REPO` in `admin.js` (era `'cialdecompatibili-netizen/crazyweb3'`, ora stringa vuota) e path fisso `/crazyweb3/assets/img/` nel bottone Img di `admin-views.js` (ora `A.baseurl()`, letto da `_config.yml` in `start()` e esposto via `A.baseurl()`).
 
 ## 10. Prossimi step / idee
 - Sezione Corsi (`_teachings`) e Libri (`_books`) se servono.

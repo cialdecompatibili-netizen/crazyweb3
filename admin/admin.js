@@ -1,6 +1,6 @@
 /* Admin crazyweb3 - al-folio v1. Vedi admin/claude.md */
 var A = (function () {
-  var TOK = '', REPO = '', BR = 'main', main, busy = false;
+  var TOK = '', REPO = '', BR = 'main', main, busy = false, BASEURL = '';
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var b64e = function (s) { return btoa(unescape(encodeURIComponent(s))); };
@@ -115,6 +115,10 @@ var A = (function () {
     $('siteLink').href = 'https://' + user + '.github.io/' + repoName + '/';
     $('deployLink').href = 'https://github.com/' + REPO + '/actions';
     lastDeploy();
+    getFile('_config.yml').then(function (f) {
+      var m = f.text.match(/^baseurl:\s*(.*)$/m);
+      BASEURL = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+    }).catch(function () { });
   }
   function toggleMenu(f) {
     var s = $('side'), o = $('overlay'), on = f === undefined ? !s.classList.contains('open') : f;
@@ -140,12 +144,13 @@ var A = (function () {
   var views = {};
   var api_ = { $: $, esc: esc, toast: toast, getDir: getDir, getFile: getFile, putFile: putFile, delFile: delFile,
     splitFM: splitFM, fmGet: fmGet, fmSet: fmSet, fmDel: fmDel, yq: yq, slugify: slugify, today: today, now: now,
-    wrap: wrap, views: views, go: go, main: function () { return main; }, errMsg: errMsg, api: api };
+    wrap: wrap, views: views, go: go, main: function () { return main; }, errMsg: errMsg, api: api,
+    baseurl: function () { return BASEURL; } };
 
   /*__MODULI__*/
 
   window.addEventListener('load', function () {
-    TOK = localStorage.getItem('adm_tok') || ''; REPO = localStorage.getItem('adm_repo') || 'cialdecompatibili-netizen/crazyweb3';
+    TOK = localStorage.getItem('adm_tok') || ''; REPO = localStorage.getItem('adm_repo') || '';
     $('repo').value = REPO;
     if (TOK) { api('GET', '').then(function (r) { BR = r.default_branch || 'main'; start(); }).catch(function () { $('login').style.display = 'flex'; }); }
   });

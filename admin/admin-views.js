@@ -15,7 +15,7 @@
       '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +
       '<button class="btn sm" onclick="mdIns(\'\\n- \',\'\')">Lista</button>' +
       '<button class="btn sm" onclick="mdIns(\'[\',\'](https://)\')">Link</button>' +
-      '<button class="btn sm" onclick="mdIns(\'![\',\'](/crazyweb3/assets/img/)\')">Img</button>' +
+      '<button class="btn sm" onclick="mdIns(\'![\',\'](\' + A.baseurl() + \'/assets/img/)\')">Img</button>' +
       '</div>';
   }
   function ymlList(fm) { return fm; }
