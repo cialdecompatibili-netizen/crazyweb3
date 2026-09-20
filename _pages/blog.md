@@ -18,43 +18,30 @@ pagination:
 
 <div class="post">
 
-{% assign blog_name_size = site.blog_name | size %}
-{% assign blog_description_size = site.blog_description | size %}
-
-{% if blog_name_size > 0 or blog_description_size > 0 %}
-
-  <div class="header-bar">
-    <h1>{{ site.blog_name }}</h1>
-  </div>
-  {% endif %}
-
 {% comment %}
-  ELENCO CATEGORIE del blog: semplice e automatico. Mostra SEMPRE TUTTE le categorie che esistono nei post
-  (site.categories), in ordine alfabetico, ognuna con il numero di post. Nessun limite e nessun taglio.
-  Il link va all'archivio di jekyll-archives (/blog/category/nome/).
-  Per aggiungere una categoria basta usarla in un post: compare da sola. I tag NON sono piu' in questa barra
-  (restano sotto ogni post, cliccabili).
-  CSS qui sotto (l'unico di questa pagina):
-  - .header-bar: il tema (main.css) mette una linea sotto il titolo del blog (border-bottom): qui la tolgo e riduco lo spazio.
-    La descrizione del blog (blog_description in _config.yml) non viene piu' mostrata.
-  - .tag-category-list: le categorie stanno in riga e vanno a capo da sole (flex-wrap), senza margini grandi.
+  ELENCO CATEGORIE del blog, in cima e il piu' compatto possibile (il lettore vuole subito le informazioni).
+  - Niente titolo/intestazione del blog (blog_name / blog_description in _config.yml non sono piu' usati qui).
+  - Mostra SEMPRE TUTTE le categorie che esistono nei post (site.categories), in ordine alfabetico, ognuna con il
+    numero di post, senza limite e senza taglio. Il link va all'archivio di jekyll-archives (/blog/category/nome/).
+  - Per aggiungere una categoria basta usarla in un post: compare da sola. I tag NON sono in questa barra
+    (restano sotto ogni post, cliccabili).
+  - CSS (l'unico di questa pagina): righe di testo piccolo, separatore "·" con margini minimi, niente icone,
+    spazio sopra/sotto ridotto. Per stringere o allargare basta cambiare font-size / gap / margin qui sotto.
+  - I margini stretti valgono solo per questa pagina: usano selettori .post e .tag-category-list, non toccano il tema.
 {% endcomment %}
 <style>
-  .header-bar { border-bottom: 0; padding-bottom: 1rem; }
-  .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 .5rem; list-style: none; padding: 0; margin: 0; }
-  .tag-category-list ul li, .tag-category-list ul p { margin: 0; }
+  .post > .tag-category-list { margin: 0 0 .4rem; line-height: 1.25; font-size: .85rem; text-align: center; }
+  .post > .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .35rem; list-style: none; padding: 0; margin: 0; }
+  .post > .tag-category-list li { margin: 0; padding: 0; }
+  .post .featured-posts .mb-4 { margin-bottom: .5rem !important; }
+  .post > .tag-category-list li + li::before { content: "\00b7"; margin-right: .35rem; color: var(--global-text-color-light); }
 </style>
 {% if site.categories.size > 0 %}
   <div class="tag-category-list">
-    <ul class="p-0 m-0">
+    <ul>
       {% assign cats_sorted = site.categories | sort %}
       {% for c in cats_sorted %}
-        <li>
-          <i class="fa-solid fa-tag fa-sm"></i> <a href="{{ c[0] | slugify | prepend: '/blog/category/' | relative_url }}">{{ c[0] }}</a> ({{ c[1] | size }})
-        </li>
-        {% unless forloop.last %}
-          <p>&bull;</p>
-        {% endunless %}
+        <li><a href="{{ c[0] | slugify | prepend: '/blog/category/' | relative_url }}">{{ c[0] }}</a> ({{ c[1] | size }})</li>
       {% endfor %}
     </ul>
   </div>
@@ -62,7 +49,6 @@ pagination:
 
 {% assign featured_posts = site.posts | where: "featured", "true" %}
 {% if featured_posts.size > 0 %}
-<br>
 
 <div class="container featured-posts">
 {% assign is_even = featured_posts.size | modulo: 2 %}
@@ -101,7 +87,7 @@ pagination:
       {% endfor %}
       </div>
     </div>
-    <hr>
+    <hr style="margin: .25rem 0 .75rem">
 
 {% endif %}
 
