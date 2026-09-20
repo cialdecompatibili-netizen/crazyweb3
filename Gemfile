@@ -62,3 +62,7 @@ group :al_folio_plugins do
     gem 'al_marimo', '= 1.0.0'
     gem 'al_rtl', '= 1.0.0'
 end
+
+# Dati fuso orario per Windows/JRuby: serve a Jekyll quando _config.yml ha 'timezone: Europe/Rome' (vedi admin/claude.md sez. 0c).
+# Su Linux (server GitHub) il sistema ha gia' i dati, quindi questa riga non ha effetto li'.
+gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]

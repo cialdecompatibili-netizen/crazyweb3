@@ -69,6 +69,8 @@
     curP = p || { name: '', sha: '', fm: 'layout: page\ntitle: \npermalink: /nuova/\nnav: false', body: '' };
     var h = '<h2>' + (p ? 'Modifica ' + esc(p.name) : 'Nuova pagina') + '</h2><div class="card">' +
       (p ? '' : '<label>Nome file (senza .md)</label><input id="p_name" placeholder="chi-siamo">') +
+      '<label>SEO Title (vuoto = usa il titolo)</label><input id="p_seot" value="' + esc(A.fmGet(curP.fm, 'seo_title')) + '">' +
+      '<label>SEO Description (vuoto = estratto automatico del testo)</label><input id="p_seod" value="' + esc(A.fmGet(curP.fm, 'seo_description')) + '">' +
       '<label>Front matter (YAML)</label><textarea id="p_fm" style="min-height:160px">' + esc(curP.fm) + '</textarea>' +
       '<label>Corpo (Markdown)</label><textarea id="body">' + esc(curP.body) + '</textarea>' +
       '<p><button class="btn primary" onclick="A.pgSave()">Salva e pubblica</button><button class="btn" onclick="A.go(\'pages\')">Annulla</button></p></div>';
@@ -78,7 +80,15 @@
     var name = curP.name || (($('p_name') || {}).value || '').trim();
     if (!name) return A.toast('Nome file obbligatorio', true);
     name = A.slugify(name.replace(/\.md$/, '')).replace(/-/g, '_') === '' ? name : name.replace(/\.md$/, '');
-    var txt = '---\n' + $('p_fm').value.replace(/\n+$/, '') + '\n---\n\n' + $('body').value.replace(/^\n+/, '');
+    /* SEO: i due campi sopra il YAML vengono scritti DENTRO il front matter prima del salvataggio.
+       Vuoto = riga rimossa (il sito usa il fallback in _includes/metadata.liquid). yq() e' obbligatorio:
+       un titolo SEO con ":" o virgolette romperebbe il YAML e la pagina sparirebbe dal build. */
+    var pfm = $('p_fm').value;
+    [['seo_title', 'p_seot'], ['seo_description', 'p_seod']].forEach(function (s) {
+      var v = ($(s[1]).value || '').trim();
+      pfm = v ? A.fmSet(pfm, s[0], A.yq(v)) : A.fmDel(pfm, s[0]);
+    });
+    var txt = '---\n' + pfm.replace(/\n+$/, '') + '\n---\n\n' + $('body').value.replace(/^\n+/, '');
     return A.putFile('_pages/' + name + '.md', txt, curP.sha, 'admin: pagina ' + name).then(function () { A.toast('Salvato'); A.go('pages'); });
   });
   A.pgDel = A.wrap(function (name) {

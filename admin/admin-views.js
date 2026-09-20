@@ -59,10 +59,16 @@
   Object.keys(C).forEach(function (k) { collection(C[k]); });
 
   /* campi per collezione: [nome, etichetta, tipo] - 'cat' = dropdown categorie, 'date' = selettore data+ora nativo */
+  /* SEO: due campi opzionali in fondo a ogni editor. Vuoti = la riga sparisce dal front matter
+     (A.save() usa fmDel su valore vuoto) e il sito applica il fallback automatico definito in
+     _includes/metadata.liquid (title = titolo pagina | sito; description = estratto del testo).
+     Si chiamano seo_title/seo_description e NON "description" perche' in al-folio "description" e'
+     anche il sottotitolo visibile nella pagina. Vedi admin/claude.md sez. 0d. */
+  var SEO = [['seo_title', 'SEO Title (vuoto = usa il titolo)', 'text'], ['seo_description', 'SEO Description (vuoto = estratto automatico del testo)', 'text']];
   var FIELDS = {
-    posts: [['title', 'Titolo', 'text'], ['date', 'Data', 'date'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'cat']],
-    projects: [['title', 'Titolo', 'text'], ['description', 'Descrizione', 'text'], ['img', 'Immagine (es. assets/img/12.jpg)', 'text'], ['importance', 'Ordine (numero)', 'text'], ['category', 'Categoria (deve stare in display_categories di projects)', 'cat'], ['redirect', 'Redirect esterno (opzionale)', 'text']],
-    news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data', 'date'], ['inline', 'Inline (true = solo riga in home)', 'text']]
+    posts: [['title', 'Titolo', 'text'], ['date', 'Data', 'date'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'cat']].concat(SEO),
+    projects: [['title', 'Titolo', 'text'], ['description', 'Descrizione', 'text'], ['img', 'Immagine (es. assets/img/12.jpg)', 'text'], ['importance', 'Ordine (numero)', 'text'], ['category', 'Categoria (deve stare in display_categories di projects)', 'cat'], ['redirect', 'Redirect esterno (opzionale)', 'text']].concat(SEO),
+    news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data', 'date'], ['inline', 'Inline (true = solo riga in home)', 'text']].concat(SEO)
   };
   var LAYOUT = { posts: 'post', projects: 'page', news: 'post' };
   var cur = {};
