@@ -25,17 +25,25 @@ pagination:
 
   <div class="header-bar">
     <h1>{{ site.blog_name }}</h1>
-    <h2>{{ site.blog_description }}</h2>
   </div>
   {% endif %}
 
 {% comment %}
   ELENCO CATEGORIE del blog: semplice e automatico. Mostra SEMPRE TUTTE le categorie che esistono nei post
-  (site.categories), in ordine alfabetico, ognuna con il numero di post. Nessun limite, nessun taglio, nessun CSS.
+  (site.categories), in ordine alfabetico, ognuna con il numero di post. Nessun limite e nessun taglio.
   Il link va all'archivio di jekyll-archives (/blog/category/nome/).
   Per aggiungere una categoria basta usarla in un post: compare da sola. I tag NON sono piu' in questa barra
   (restano sotto ogni post, cliccabili).
+  CSS qui sotto (l'unico di questa pagina):
+  - .header-bar: il tema (main.css) mette una linea sotto il titolo del blog (border-bottom): qui la tolgo e riduco lo spazio.
+    La descrizione del blog (blog_description in _config.yml) non viene piu' mostrata.
+  - .tag-category-list: le categorie stanno in riga e vanno a capo da sole (flex-wrap), senza margini grandi.
 {% endcomment %}
+<style>
+  .header-bar { border-bottom: 0; padding-bottom: 1rem; }
+  .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 .5rem; list-style: none; padding: 0; margin: 0; }
+  .tag-category-list ul li, .tag-category-list ul p { margin: 0; }
+</style>
 {% if site.categories.size > 0 %}
   <div class="tag-category-list">
     <ul class="p-0 m-0">
