@@ -32,12 +32,13 @@ pagination:
   - SPAZIO SOPRA: il tema mette 3rem (classe mt-5) sopra il contenuto; qui lo azzero solo per questa pagina
     (regola .container.mt-5:has(...)), cosi' la lista sta a 1cm dalla riga del menu = il primo valore di "margin: 1cm 0 .5cm".
     Cambia solo quel "1cm" (0.5cm piu stretto, 1.5cm piu largo). Il secondo valore (.5cm) e' lo spazio sotto la lista.
-  - NESSUNA RIGA ORIZZONTALE sotto le card in evidenza (tolto il tag hr).
+  - NESSUNA RIGA ORIZZONTALE: le righe erano DUE. (1) il tema (main.css) mette a .tag-category-list un border-bottom di 1px
+    e un padding-top di 1rem: qui li azzero (border-bottom: 0; padding-top: 0). (2) il tag hr sotto le card in evidenza: tolto.
   - I margini stretti valgono solo per questa pagina: usano selettori .post e .tag-category-list, non toccano il tema.
 {% endcomment %}
 <style>
   .container.mt-5:has(> .post > .tag-category-list) { margin-top: 0 !important; }
-  .post > .tag-category-list { margin: 1cm 0 .5cm; line-height: 1.25; font-size: .85rem; text-align: center; }
+  .post > .tag-category-list { border-bottom: 0; padding-top: 0; margin: 1cm 0 .5cm; line-height: 1.25; font-size: .85rem; text-align: center; }
   .post > .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .35rem; list-style: none; padding: 0; margin: 0; }
   .post > .tag-category-list li { margin: 0; padding: 0; }
   .post > .blog-desc { margin: 0 0 .25rem; line-height: 1.25; font-size: .85rem; text-align: center; color: var(--global-text-color-light); }
