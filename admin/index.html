@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Admin</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="login">
+  <div class="login-box">
+    <h1>Admin</h1>
+    <p>Incolla il tuo token GitHub (scope <b>repo</b>). Resta solo in questo browser.</p>
+    <input id="tok" type="password" placeholder="ghp_...">
+    <input id="repo" type="text" placeholder="utente/repo">
+    <button class="btn primary" onclick="A.login()">Entra</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="app" style="display:none">
+  <div class="topbar">
+    <button class="burger" onclick="A.toggleMenu()" aria-label="Menu">&#9776;</button>
+    <span id="topTitle">Bacheca</span>
+    <span id="deployDot" class="dot" title="Deploy"></span>
+  </div>
+  <nav id="side" class="side">
+    <div class="brand">Admin <small id="repoName"></small></div>
+    <a data-p="dash" onclick="A.go('dash')">&#9962; Bacheca</a>
+    <a data-p="posts" onclick="A.go('posts')">&#9998; Articoli</a>
+    <a data-p="pages" onclick="A.go('pages')">&#9636; Pagine</a>
+    <a data-p="menu" onclick="A.go('menu')">&#9776; Menu</a>
+    <a data-p="projects" onclick="A.go('projects')">&#9733; Progetti</a>
+    <a data-p="news" onclick="A.go('news')">&#9993; News</a>
+    <a data-p="media" onclick="A.go('media')">&#9635; Immagini</a>
+    <a data-p="settings" onclick="A.go('settings')">&#9881; Impostazioni</a>
+    <a onclick="A.logout()" class="out">&#10162; Esci</a>
+  </nav>
+  <main id="main" class="main"></main>
+</div>
+<div id="toast" class="toast"></div>
+<div id="overlay" class="overlay" onclick="A.toggleMenu(false)"></div>
+
+<script src="admin.js"></script>
+<script src="admin-views.js"></script>
+<script src="admin-menu.js"></script>
+<script src="admin-media.js"></script>
+</body>
+</html>
