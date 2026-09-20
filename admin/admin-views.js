@@ -67,7 +67,16 @@
   var LAYOUT = { posts: 'post', projects: 'page', news: 'post' };
   var cur = {};
 
-  /* parse "YYYY-MM-DD HH:MM:SS[ +ZZZZ]" -> {d:'YYYY-MM-DD', t:'HH:MM', tz:'+ZZZZ'|''} */
+  /* parse "YYYY-MM-DD HH:MM:SS[ +ZZZZ]" -> {d:'YYYY-MM-DD', t:'HH:MM', tz:'+ZZZZ'|''}
+     Perche' due input nativi (date + time) e non un campo testo: Jekyll legge "date:" come un vero
+     oggetto Time solo se il valore e' un timestamp YAML valido; un valore malformato (es. una data
+     scritta a mano con un refuso) viene letto come stringa e il post puo' sparire da blog/home
+     senza alcun errore in build. Con <input type=date>/<input type=time> il browser garantisce
+     il formato, quindi il valore scritto e' sempre valido (vedi commento su fmGet/fmSet in
+     admin.js e save() sotto).
+     Il fuso (tz) non e' modificabile da UI: se la data esistente lo contiene (es. "+0200") viene
+     conservato in un campo hidden e riscritto identico al salvataggio, per non alterare l'orario
+     di un post gia' pubblicato. Secondi sempre azzerati (":00"): l'input time lavora al minuto. */
   function parseDate(v) {
     var m = (v || '').match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?\s*([+-]\d{4})?/);
     if (!m) return { d: '', t: '', tz: '' };
@@ -80,7 +89,15 @@
       '<input type="hidden" id="' + id + '_tz" value="' + esc(p.tz) + '">';
   }
 
-  /* legge tutte le categorie gia' usate in una collezione (per il dropdown) */
+  /* legge tutte le categorie gia' usate in una collezione (per il dropdown)
+     Costo: 1 chiamata API per OGNI file della cartella (N post = N+1 richieste GitHub) ogni volta
+     che si apre l'editor. Va bene per un blog piccolo; il rate limit per token autenticato e' di
+     5000 richieste/ora, ma con centinaia di post l'apertura dell'editor diventa lenta. Se serve
+     scalare, cachare il risultato per la sessione.
+     Il campo e' 'categories' per i post e 'category' (singolare) per i progetti: sono due campi
+     diversi in al-folio. Split per spazi: Jekyll tratta "categories: a b" come lista ["a","b"]
+     (vedi commento su categories/tags in admin.js), quindi una categoria con spazio nel nome NON
+     e' rappresentabile in questa forma. */
   function loadCats(key) {
     var field = key === 'projects' ? 'category' : 'categories';
     return A.getDir(C[key].dir).then(function (files) {
@@ -142,6 +159,9 @@
         v = d ? d + ' ' + t + ':00' + (tz ? ' ' + tz : '') : '';
       } else v = $('f_' + k).value.trim();
       if (v === '') { if (k !== 'title' || key !== 'news') fm = k === 'img' ? A.fmSet(fm, k, '') : A.fmDel(fm, k); else fm = A.fmDel(fm, k); return; }
+      /* inline/importance/date vanno scritti SENZA virgolette (fmSet diretto, non yq()):
+         "inline: true" deve restare booleano, "importance: 2" numero, "date: 2026-09-20 14:47:00"
+         un timestamp YAML che Jekyll legge come Time. Quotarli li trasformerebbe in stringhe. */
       if (k === 'inline' || k === 'importance' || k === 'date') fm = A.fmSet(fm, k, v);
       else fm = A.fmSet(fm, k, A.yq(v));
     });

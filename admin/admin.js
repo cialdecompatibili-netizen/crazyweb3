@@ -30,6 +30,12 @@ var A = (function () {
   }
   function getDir(p) { return api('GET', '/contents/' + p + '?ref=' + BR).catch(function (e) { if (e.status === 404) return []; throw e; }); }
   function getFile(p) { return api('GET', '/contents/' + p + '?ref=' + BR).then(function (j) { j.text = b64d(j.content); return j; }); }
+  /* GitHub Contents API usa concorrenza ottimistica: PUT/DELETE su un file esistente RICHIEDONO
+     lo sha corrente (letto con getFile), altrimenti 409/422 "conflitto". Se due salvataggi sullo
+     stesso file partono ravvicinati (doppio click, due tab aperte) il secondo puo' fallire con
+     409 perche' lo sha che ha in mano non e' piu' quello vero: in quel caso l'utente deve
+     ricaricare la vista (A.go) per riprendere lo sha aggiornato, NON ritentare con lo sha vecchio.
+     wrap() (sotto) previene solo il doppio click nella STESSA vista, non le due tab aperte. */
   function putFile(p, text, sha, msg, isB64) {
     var b = { message: msg || 'admin: aggiorna ' + p, content: isB64 ? text : b64e(text), branch: BR };
     if (sha) b.sha = sha;
@@ -39,7 +45,28 @@ var A = (function () {
     return api('DELETE', '/contents/' + p, { message: 'admin: elimina ' + p, sha: sha, branch: BR }).then(function (r) { pollDeploy(); return r; });
   }
 
-  /* ---- front matter ---- */
+  /* ---- front matter ----
+     Jekyll legge il front matter YAML col parser Psych (Ruby). Fonti: jekyllrb.com/docs/front-matter,
+     jekyllrb.com/docs/configuration/options (flag "future"), jekyllrb.com/docs/posts (tags/categories).
+     - fmSet/fmGet lavorano riga per riga con regex: assumono "chiave: valore" su UNA riga, senza
+       andare a capo (i blocchi multilinea come "children:" in admin-menu.js sono gestiti a parte,
+       NON con fmGet/fmSet). Se un valore contiene "\n" queste funzioni lo rompono.
+     - yq() quota SOLO se serve (caratteri speciali YAML o spazi ai bordi). NON usarla per "date":
+       scritta senza virgolette (es. 2026-09-20 14:47:00) Psych la legge come un vero oggetto Time.
+       E' il valore che Jekyll confronta con l'ora corrente per decidere se un post e' "nel futuro":
+       la CLI ha il flag --future (default false, cioe' i post con data futura NON vengono
+       pubblicati) — vedi jekyllrb.com/docs/configuration/options#build-command-options. Quotare la
+       data la rende una stringa qualsiasi anziche' un Time: il confronto puo' comportarsi in modo
+       incoerente a seconda della versione di Jekyll -> post che spariscono da blog/home senza
+       errori in build. Per questo admin-views.js gestisce "date" con un <input type=date>+
+       <input type=time> nativo invece che testo libero, e la scrive SEMPRE non quotata (vedi
+       A.save() li'). Non reintrodurre yq() su "date".
+     - "categories" e "tags" hanno gestione Jekyll dedicata (jekyllrb.com/docs/posts#tags-and-categories):
+       una stringa con spazi in front matter viene AUTOMATICAMENTE splittata in un array (es.
+       "categories: sport cronaca" -> ["sport","cronaca"]). E' l'UNICA ragione per cui l'admin puo'
+       permettersi di salvare piu' categorie come stringa unica separata da spazi: non serve
+       costruire un array YAML a mano. Questo split automatico vale SOLO per categories/tags,
+       nessun altro campo del front matter lo riceve. */
   function splitFM(t) {
     var m = t.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
     return m ? { fm: m[1], body: m[2] } : { fm: '', body: t };
@@ -60,7 +87,11 @@ var A = (function () {
   function today() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
   function now() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return today() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00'; }
 
-  /* ---- deploy status: build ("Deploy site") + pubblicazione ("pages build and deployment") ---- */
+  /* ---- deploy status: build ("Deploy site") + pubblicazione ("pages build and deployment") ----
+     Due workflow GitHub distinti, in sequenza: "Deploy site" (definito in questo repo,
+     .github/workflows/deploy.yml) builda il sito Jekyll; a build finita GitHub Pages lancia in
+     automatico un secondo workflow di sistema chiamato "pages build and deployment" che pubblica
+     l'artifact. Il sito e' online solo quando ENTRAMBI risultano "completed"/"success". */
   var pt, pf;
   function setDeploy(cls, txt, pct) {
     var dot = $('deployDot'), t = $('deployTxt'), bar = $('deployBar');
@@ -69,6 +100,14 @@ var A = (function () {
   }
   function pollDeploy() {
     clearTimeout(pt); clearInterval(pf);
+    /* t0 = "5 secondi prima di adesso" e serve a scartare run vecchie quando si interroga la
+       lista GET /actions/runs (torna le piu' recenti, non solo quelle innescate da QUESTO
+       salvataggio). E' un confronto tra l'orologio del browser dell'utente e i timestamp che
+       GitHub assegna ai run (UTC, orologio dei suoi server): un margine di 5s copre normali
+       piccole discrepanze, ma su un client con orologio molto sballato puo' far perdere la run
+       giusta (rientrerebbe tra quelle "vecchie") o, viceversa, far agganciare una run precedente
+       ancora recente. Non e' un problema documentato da GitHub, e' un limite intrinseco del
+       confrontare un'ora locale con un'ora server senza sincronizzazione esplicita. */
     var t0 = new Date(Date.now() - 5000).toISOString(), pct = 5, n = 0;
     setDeploy('run', 'Deploy in corso...', pct);
     pf = setInterval(function () { if (pct < 85) { pct += pct < 40 ? 2 : 0.6; $('deployBar').style.width = pct + '%'; } }, 1500);
@@ -115,6 +154,16 @@ var A = (function () {
     $('siteLink').href = 'https://' + user + '.github.io/' + repoName + '/';
     $('deployLink').href = 'https://github.com/' + REPO + '/actions';
     lastDeploy();
+    /* baseurl (letto sotto, async) e' la variabile Jekyll standard che al-folio usa per generare
+       i link del sito (vedi al-folio docs/CUSTOMIZE.md, sezione "Configuration": "the url and
+       baseurl settings are used to generate the links of the website"). E' l'unica fonte di
+       verita' per il sottopercorso del sito (qui /crazyweb3): non va MAI hardcodato altrove
+       nell'admin (vedi claude.md sez. 0, filosofia zero-hardcoded). BASEURL e' letto qui in modo
+       ASINCRONO (arriva dopo start()), quindi qualsiasi modulo che usa A.baseurl() nel PRIMO
+       render dopo il login puo' trovarlo ancora '' per una frazione di secondo. Non e' un bug
+       bloccante (il caso d'uso e' il bottone Img della toolbar markdown, cliccato dall'utente ben
+       dopo il caricamento), ma se in futuro serve BASEURL per costruire qualcosa a schermata gia'
+       pronta, aspettare questa Promise invece di leggere A.baseurl() a freddo. */
     getFile('_config.yml').then(function (f) {
       var m = f.text.match(/^baseurl:\s*(.*)$/m);
       BASEURL = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';

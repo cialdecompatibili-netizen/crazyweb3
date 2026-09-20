@@ -17,6 +17,23 @@
       return PG;
     });
   }
+  /* IMPORTANTE: "dropdown"/"children" NON sono documentati in al-folio docs/CUSTOMIZE.md — sono
+     un meccanismo interno del layout _includes/header.liquid della gem al_folio_core (v1.x, non
+     presente in questo repo perche' gem-owned: vedi claude.md sez.1 e la tabella "Where common
+     files moved in v1.x" in CUSTOMIZE.md). Il comportamento qui sotto e' stato dedotto studiando
+     l'output della gem installata localmente (claude.md sez.4), non dalla documentazione
+     ufficiale: se in un futuro aggiornamento della gem cambia il formato di "children:", questa
+     funzione va riverificata contro la gem reale, non contro questo commento.
+     kids() fa un parsing MANUALE (non YAML vero) del blocco multilinea:
+       children:
+         - title: nome
+           permalink: /path/
+         - title: divider
+     Funziona SOLO se il blocco resta in questa identazione esatta (2 spazi per "- title", 4 per
+     "permalink", come lo scrive kidsYaml() sotto). Un utente che modifica "children:" a mano nel
+     Front matter grezzo (es. dal box "Front matter (YAML)" della vista Pagine) con un'indentazione
+     diversa, con "- title:" e "permalink:" sulla stessa riga, o con virgolette diverse, rompe
+     silenziosamente questo parser: kids() torna un array vuoto o incompleto, senza errori. */
   function kids(fm) { // legge children: [{title, permalink}]
     var out = [], m = fm.match(/^children:\s*\r?\n((?:[ \t]+.*\r?\n?)*)/m);
     if (!m) return out;
