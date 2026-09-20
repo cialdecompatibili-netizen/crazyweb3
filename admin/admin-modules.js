@@ -15,10 +15,18 @@
                    hook citato DEVE avere il file corrispondente, altrimenti Jekyll non trova
                    l'include e la BUILD DEL SITO FALLISCE (vedi modules_hook.liquid): l'installer
                    qui sotto lo controlla PRIMA di scrivere, e blocca con un errore chiaro.
+                   "hooks" PUO' essere {} (vuoto) per un modulo che usa SOLO root/ (vedi sotto):
+                   niente aggancio a head/footer, solo file piazzati in radice del sito.
      head.liquid, footer.liquid, ...   il codice del modulo per ciascun hook dichiarato.
      assets/...    opzionale, copiato in assets/modules/<slug>/ (immagini/css/js del modulo).
      data.yml      opzionale, copiato in _data/modules/<slug>.yml (impostazioni lette come
                    include.data nel liquid del modulo, vedi modules_hook.liquid).
+     root/...      opzionale, ogni file qui dentro viene copiato PARI PARI nella RADICE del sito
+                   (es. root/sitemap.xml -> sitemap.xml). Serve per moduli che devono creare una
+                   pagina/file top-level invece di stampare dentro pagine esistenti (il sistema
+                   hook di per se' stampa solo dentro _includes esistenti). ATTENZIONE: un file in
+                   root/ sovrascrive qualsiasi file con lo stesso nome gia' in radice - va bene per
+                   file "di servizio" come sitemap.xml/robots.txt, MAI per index.html o simili.
    Il nome del modulo installato E' il nome della cartella (slug): due cartelle con lo stesso nome
    in modules_source non sono possibili (e' un elenco di file GitHub), quindi non serve validarlo. */
 (function (A) {
@@ -29,7 +37,7 @@
   /* ---- lettura registry (_data/modules_registry.yml) ----
      Il file esiste gia' (creato in sessione precedente) con una scelta migliore della mia prima
      bozza: e' un blocco JSON dentro un file .yml (JSON e' YAML valido), letto/scritto con
-     JSON.parse/JSON.stringify invece di un parser riga-per-riga scritto a mano. Motivo (vedi
+     JSON.parse/JSON.stringify invece di un parser YAML scritto a mano. Motivo (vedi
      commento in testa al file stesso): niente parser YAML fragile in piu' (fonte tipica di bug,
      come kids() in admin-menu.js), e il nome .yml (non .json) serve solo a far ripartire il
      deploy (deploy.yml parte su *.yml ma non su *.json soli, vedi claude.md sez. 2).
@@ -45,11 +53,13 @@
       function (e) { if (e.status === 404) return { sha: '', reg: {} }; throw e; });
   }
 
-  /* ---- lettura module.json di un modulo disponibile ---- */
+  /* ---- lettura module.json di un modulo disponibile ----
+     "hooks" puo' essere {} (modulo solo-root, vedi commento in testa al file): non e' un errore,
+     quindi qui NON si blocca piu' se hooks e' vuoto, solo se manca proprio la chiave "hooks". */
   function getManifest(slug) {
     return A.getFile(SRC + '/' + slug + '/module.json').then(function (f) {
       var j; try { j = JSON.parse(f.text); } catch (e) { throw new Error('module.json non valido in ' + slug); }
-      if (!j.hooks || !Object.keys(j.hooks).length) throw new Error(slug + ': module.json senza "hooks"');
+      if (!j.hooks) throw new Error(slug + ': module.json senza "hooks" (usa {} se il modulo non ne usa nessuno)');
       return j;
     });
   }
@@ -89,7 +99,7 @@
       var toInstall = avail.filter(function (a) { return !installed[a.slug]; });
       if (!toInstall.length) h += '<small>Nessun modulo nuovo trovato in ' + SRC + '/.</small>';
       toInstall.forEach(function (a) {
-        h += '<div class="it"><span><b>' + esc(a.manifest.name || a.slug) + '</b> <small>(' + esc(a.slug) + ', hook: ' + esc(Object.keys(a.manifest.hooks).join(', ')) + ')</small></span>' +
+        h += '<div class="it"><span><b>' + esc(a.manifest.name || a.slug) + '</b> <small>(' + esc(a.slug) + ', hook: ' + esc(Object.keys(a.manifest.hooks).join(', ') || '-') + ')</small></span>' +
           '<button class="btn sm primary" onclick="A.mdInstall(\'' + esc(a.slug) + '\')">Installa</button></div>';
       });
       h += '</div>';
@@ -116,11 +126,14 @@
       }, Promise.resolve([]));
     });
   }
-  /* Percorso di destinazione per un file del modulo, oppure null se non va copiato (module.json). */
+  /* Percorso di destinazione per un file del modulo, oppure null se non va copiato (module.json).
+     NUOVO: root/<file> -> <file> in radice del sito (vedi commento in testa al file per i rischi:
+     sovrascrive qualsiasi file gia' in radice con lo stesso nome, usare solo per file di servizio). */
   function destFor(slug, rel) {
     if (rel === 'module.json') return null;
     if (rel === 'data.yml') return DATA + '/' + slug + '.yml';
     if (/^assets\//.test(rel)) return IMG + '/' + slug + '/' + rel.replace(/^assets\//, '');
+    if (/^root\//.test(rel)) return rel.replace(/^root\//, '');
     return INC + '/' + slug + '/' + rel;
   }
   /* Contenuto GitHub Contents API di un file .../contents/<path> porta gia' 'content' in base64
@@ -173,9 +186,11 @@
   });
 
   /* mdUninstall: toglie la riga dal registry (il modulo smette di essere agganciato). NON cancella
-     i file installati (_includes/modules/<slug>/, assets/modules/<slug>/, _data/modules/<slug>.yml):
-     restano nel repo, cosi' una reinstallazione e' immediata e non si perdono eventuali dati.
-     Per una pulizia completa vanno cancellati a mano da GitHub (o chiedendo a Claude). */
+     i file installati (_includes/modules/<slug>/, assets/modules/<slug>/, _data/modules/<slug>.yml,
+     ne' eventuali file root/): restano nel repo, cosi' una reinstallazione e' immediata e non si
+     perdono eventuali dati. Per una pulizia completa vanno cancellati a mano da GitHub (o chiedendo
+     a Claude). NOTA per moduli root/ (es. sitemap.xml): disinstallare NON rimuove il file dalla
+     radice del sito, resta pubblicato finche' non lo si cancella manualmente. */
   A.mdUninstall = A.wrap(function (slug) {
     if (!confirm('Disinstallare ' + slug + '? (i file restano nel repo, si toglie solo l\'aggancio)')) return;
     return getRegistry().then(function (r) {
