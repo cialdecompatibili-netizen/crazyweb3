@@ -1,12 +1,11 @@
-# REGISTRO DEI MODULI INSTALLATI - scritto SOLO dall'admin (admin/admin-modules.js). NON modificare a mano.
-# Perche' e' un .yml con dentro JSON:
-#  1) deve chiamarsi .yml: il workflow .github/workflows/deploy.yml parte solo per assets/**, *.md, *.yml, *.js,
-#     *.liquid ecc. Un push che toccasse solo un .json NON farebbe ripartire il sito (successo: claude.md sez. 2).
-#     Ogni operazione dell'admin sui moduli riscrive questo file, quindi il deploy parte sempre.
-#  2) il JSON e' YAML valido, quindi Jekyll lo legge come dato (site.data.modules_registry) e l'admin lo legge/scrive con
-#     JSON.parse / JSON.stringify senza un parser YAML scritto a mano (fonte tipica di bug, vedi kids() in admin-menu.js).
-# Il nome NON e' "modules.yml" perche' _data/modules/<slug>/ contiene i dati dei singoli moduli (site.data.modules) e i due
-# nomi andrebbero in conflitto. Formato completo e regole: admin/claude.md sez. 11.
 {
-  "installed": {}
+  "installed": {
+    "esempio-banner": {
+      "name": "Banner di esempio",
+      "enabled": true,
+      "hooks": {
+        "footer": "footer.liquid"
+      }
+    }
+  }
 }
