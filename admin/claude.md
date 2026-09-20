@@ -37,12 +37,18 @@ Ogni volta che scrivi o modifichi codice in `admin/` o nei template del sito, **
 
 **Come si scrive un buon commento:**
 1. Dice il PERCHE', non il cosa (il cosa lo legge chiunque nel codice).
-2. Cita la fonte quando c'e': documentazione al-folio (`docs/CUSTOMIZE.md`), Jekyll (`jekyllrb.com/docs/...`), file della gem letto direttamente.
-3. Distingue cio' che e' **documentato** da cio' che e' **dedotto** leggendo la gem: se e' dedotto, lo scrive esplicitamente e dice di riverificarlo se la gem cambia.
+2. **FONTE DI VERITA' = SOLO la documentazione ufficiale.** Ordine: (a) al-folio: `docs/CUSTOMIZE.md` e README su github.com/alshedivat/al-folio; (b) Jekyll: jekyllrb.com/docs; (c) GitHub REST: docs.github.com. Non si cita nient'altro come "documentato": non forum, non discussioni/issue, non blog, non la memoria di una sessione precedente.
+3. **Ogni commento su comportamento del tema/Jekyll/GitHub porta un'etichetta di fonte:** `[DOC al-folio]`, `[DOC Jekyll]`, `[DOC GitHub]` oppure `[DEDOTTO dalla gem, NON documentato]`. Se non e' nella doc ufficiale va SEMPRE marcato DEDOTTO e con l'istruzione "riverificare se si aggiorna la gem". Mai scrivere "documentato" per cio' che si e' solo letto nel codice della gem.
 4. Dice cosa succede se qualcuno lo cambia (es. "il post sparisce da blog/home senza errori in build").
+5. Un commento che descrive il comportamento VECCHIO e' peggio di nessun commento: quando cambi il codice, aggiorna o togli il commento nello stesso commit. Prima di scrivere un'affermazione, verificala sul codice (e' capitato di scrivere "va bene solo se..." su un permalink senza controllare che `kidsYaml` non usa `yq`).
+
+**Cosa e' documentato e cosa NO (verificato sulla doc ufficiale al-folio):**
+- DOCUMENTATO: pagine in `_pages` con `layout` e `permalink`; `nav: true` nel front matter per il menu; post nominati `YYYY-MM-DD-title.md`; cartella `_drafts`; workflow `schedule-posts` (23:30 UTC, disattivato di default); v1.x = starter sottile con funzionalita' nelle gem.
+- NON documentato (tutto DEDOTTO dalla gem `al_folio_core-1.0.15`): `nav_order`, `dropdown`, `children`, `title: divider`, override di `_includes/header.liquid` e `_includes/metadata.liquid`. Se una futura versione della gem cambia questi meccanismi, l'admin puo' rompersi senza avviso: e' il motivo per cui ogni punto e' commentato.
 
 **Checklist prima di ogni push (obbligatoria):**
 - `node --check admin/<file>.js` su tutti i file JS toccati.
+- **Controllo punti scoperti:** ogni funzione che scrive su GitHub (`putFile`, `delFile`, `A.save`, `A.pgSave`, `A.mnSave`, `A.upload`, ...), che fa parsing del front matter (`fmGet`, `fmSet`, `kids`, `kidsYaml`), che tocca date/fuso (`now`, `serverNow`) o che dipende dal template della gem DEVE avere un commento nelle righe sopra. Comando: cercare le funzioni chiave e verificare che le 4 righe precedenti contengano `/*` o `//`.
 - I punti critici toccati hanno il commento aggiornato (non lasciare commenti che descrivono il comportamento vecchio).
 - `git status` per vedere che non restino file modificati e non committati (e' successo: commenti scritti ma mai pushati perche' la chat si e' interrotta).
 - Dopo il push, controllare che il deploy finisca in `success`.
