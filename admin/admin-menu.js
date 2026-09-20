@@ -94,6 +94,7 @@
         off.forEach(function (p) { h += '<div class="it"><span>' + esc(p.title || p.name) + '<small>' + esc(p.permalink) + '</small></span><button class="btn sm" onclick="A.mnOn(\'' + esc(p.name) + '\')">Aggiungi al menu</button></div>'; });
         h += '</div></div>';
       }
+      h += '<div class="card"><h3>Nuova voce di menu</h3><p>Crea una nuova pagina e la aggiunge subito al menu principale (non dropdown).</p><input id="mv_t" placeholder="Titolo voce"><input id="mv_p" placeholder="/percorso/ (permalink)"><p><button class="btn" onclick="A.mvNew()">Crea voce</button></p></div>';
       h += '<div class="card"><h3>Nuovo submenu</h3><p>Crea un dropdown vuoto, poi aggiungi le voci.</p><input id="dd_t" placeholder="Titolo dropdown"><p><button class="btn" onclick="A.ddNew()">Crea submenu</button></p></div>';
       M().innerHTML = h;
     });
@@ -112,6 +113,15 @@
   }
   A.mnOff = A.wrap(function (n) { if (!confirm('Togliere dal menu?')) return; return setNav(n, false).then(function () { A.toast('Tolto'); A.go('menu'); }); });
   A.mnOn = A.wrap(function (n) { return setNav(n, true).then(function () { A.toast('Aggiunto (ordine 20, modificalo)'); A.go('menu'); }); });
+
+  A.mvNew = A.wrap(function () {
+    var t = ($('mv_t').value || '').trim(); if (!t) return A.toast('Titolo obbligatorio', true);
+    var perm = ($('mv_p').value || '').trim() || '/' + A.slugify(t) + '/';
+    if (perm.charAt(0) !== '/') perm = '/' + perm;
+    if (perm.charAt(perm.length - 1) !== '/') perm += '/';
+    var fm = 'layout: page\ntitle: ' + A.yq(t) + '\npermalink: ' + perm + '\nnav: true\nnav_order: 20';
+    return A.putFile('_pages/' + A.slugify(t).replace(/-/g, '_') + '.md', '---\n' + fm + '\n---\n', '', 'admin: nuova voce menu ' + t).then(function () { A.toast('Creata (ordine 20, modificalo)'); A.go('menu'); });
+  });
 
   A.ddNew = A.wrap(function () {
     var t = ($('dd_t').value || '').trim(); if (!t) return A.toast('Titolo obbligatorio', true);
