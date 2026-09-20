@@ -58,19 +58,47 @@
   };
   Object.keys(C).forEach(function (k) { collection(C[k]); });
 
-  /* campi per collezione: [nome, etichetta, tipo] */
+  /* campi per collezione: [nome, etichetta, tipo] - tipo 'cat' = dropdown categorie esistenti + nuova */
   var FIELDS = {
-    posts: [['title', 'Titolo', 'text'], ['date', 'Data (YYYY-MM-DD HH:MM:SS)', 'text'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'text']],
-    projects: [['title', 'Titolo', 'text'], ['description', 'Descrizione', 'text'], ['img', 'Immagine (es. assets/img/12.jpg)', 'text'], ['importance', 'Ordine (numero)', 'text'], ['category', 'Categoria (deve stare in display_categories di projects)', 'text'], ['redirect', 'Redirect esterno (opzionale)', 'text']],
+    posts: [['title', 'Titolo', 'text'], ['date', 'Data (YYYY-MM-DD HH:MM:SS)', 'text'], ['description', 'Descrizione', 'text'], ['tags', 'Tag (separati da spazio)', 'text'], ['categories', 'Categoria', 'cat']],
+    projects: [['title', 'Titolo', 'text'], ['description', 'Descrizione', 'text'], ['img', 'Immagine (es. assets/img/12.jpg)', 'text'], ['importance', 'Ordine (numero)', 'text'], ['category', 'Categoria (deve stare in display_categories di projects)', 'cat'], ['redirect', 'Redirect esterno (opzionale)', 'text']],
     news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data (YYYY-MM-DD HH:MM:SS -0400)', 'text'], ['inline', 'Inline (true = solo riga in home)', 'text']]
   };
   var LAYOUT = { posts: 'post', projects: 'page', news: 'post' };
   var cur = {};
 
+  /* legge tutte le categorie gia' usate in una collezione (per il dropdown) */
+  function loadCats(key) {
+    var field = key === 'projects' ? 'category' : 'categories';
+    return A.getDir(C[key].dir).then(function (files) {
+      files = files.filter(function (f) { return f.type === 'file' && /\.md$/.test(f.name); });
+      return Promise.all(files.map(function (f) { return A.getFile(C[key].dir + '/' + f.name).catch(function () { return null; }); }));
+    }).then(function (fs) {
+      var set = {};
+      fs.forEach(function (f) {
+        if (!f) return;
+        var v = A.fmGet(A.splitFM(f.text).fm, field);
+        v.split(/\s+/).forEach(function (c) { c = c.trim(); if (c) set[c] = 1; });
+      });
+      return Object.keys(set).sort();
+    });
+  }
+
+  function catField(fd, v) {
+    var id = 'f_' + fd[0];
+    var h = '<label>' + fd[1] + '</label><select id="' + id + '" onchange="if(this.value===\'__new__\'){this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';this.nextElementSibling.focus();}">';
+    h += '<option value="">-- nessuna --</option>';
+    (cur.cats || []).forEach(function (c) { h += '<option value="' + esc(c) + '"' + (c === v ? ' selected' : '') + '>' + esc(c) + '</option>'; });
+    var known = (cur.cats || []).indexOf(v) >= 0 || v === '';
+    h += '<option value="__new__">+ nuova categoria...</option></select>';
+    h += '<input id="' + id + '_new" placeholder="Nuova categoria" style="display:' + (known ? 'none' : 'block') + '" value="' + (known ? '' : esc(v)) + '">';
+    return h;
+  }
+
   A.edit = function (key, name) {
     var p = name ? Promise.resolve(A.getFile(C[key].dir + '/' + name)) : Promise.resolve(null);
-    p.then(function (f) {
-      cur = { key: key, name: name || '', sha: f ? f.sha : '', fm: f ? A.splitFM(f.text).fm : '' };
+    Promise.all([p, loadCats(key)]).then(function (r) {
+      var f = r[0]; cur = { key: key, name: name || '', sha: f ? f.sha : '', fm: f ? A.splitFM(f.text).fm : '', cats: r[1] };
       var body = f ? A.splitFM(f.text).body : '';
       var h = '<h2>' + (name ? 'Modifica ' + esc(name) : 'Nuovo in ' + C[key].label) + '</h2><div class="card">';
       FIELDS[key].forEach(function (fd) {
@@ -78,7 +106,8 @@
         if (!f && fd[0] === 'date') v = key === 'posts' ? A.now() : A.now() + ' +0000';
         if (!f && fd[0] === 'inline') v = 'true';
         if (!f && fd[0] === 'importance') v = '1';
-        h += '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
+        if (fd[2] === 'cat') h += catField(fd, v);
+        else h += '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
       });
       h += '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea>' +
         '<p><button class="btn primary" onclick="A.save()">Salva e pubblica</button><button class="btn" onclick="A.go(\'' + key + '\')">Annulla</button></p></div>';
@@ -90,7 +119,11 @@
     var key = cur.key, fm = cur.fm || 'layout: ' + LAYOUT[key], name = cur.name;
     fm = A.fmSet(fm, 'layout', LAYOUT[key]);
     FIELDS[key].forEach(function (fd) {
-      var v = $('f_' + fd[0]).value.trim(), k = fd[0];
+      var k = fd[0], v;
+      if (fd[2] === 'cat') {
+        var sel = $('f_' + k).value;
+        v = (sel === '__new__' ? $('f_' + k + '_new').value : sel).trim();
+      } else v = $('f_' + k).value.trim();
       if (v === '') { if (k !== 'title' || key !== 'news') fm = k === 'img' ? A.fmSet(fm, k, '') : A.fmDel(fm, k); else fm = A.fmDel(fm, k); return; }
       if (k === 'inline' || k === 'importance') fm = A.fmSet(fm, k, v);
       else fm = A.fmSet(fm, k, A.yq(v));
