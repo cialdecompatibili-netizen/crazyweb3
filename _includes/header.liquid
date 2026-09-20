@@ -2,7 +2,11 @@
   <!-- Nav Bar -->
   <nav id="navbar" class="navbar navbar-light navbar-expand-sm {% if site.navbar_fixed %}fixed-top{% else %}sticky-top{% endif %}" role="navigation">
     <div class="container">
-      {% if page.permalink != '/' %}
+      {% comment %}
+        OVERRIDE locale: il nome del sito (brand) ora e' mostrato SEMPRE, home compresa.
+        Prima era nascosto sulla home con "page.permalink != '/'" (comportamento di default di al-folio).
+      {% endcomment %}
+      {% if true %}
         <a class="navbar-brand title font-weight-lighter" href="{{ site.baseurl }}/">
           {% if site.title == 'blank' %}
             {% if site.first_name %}
