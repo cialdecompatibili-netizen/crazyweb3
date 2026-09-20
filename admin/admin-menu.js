@@ -92,7 +92,14 @@
     return load().then(function () {
       var top = PG.filter(function (p) { return p.nav; }).sort(function (a, b) { return (a.order || 99) - (b.order || 99); });
       var home = PG.filter(function (p) { return p.permalink === '/'; })[0];
-      var h = '<h2>Menu</h2><div class="card"><p>La voce Home (<b>' + esc(home ? home.title : '') + '</b>) e sempre la prima. Le altre seguono l\'ordine sotto; le pagine "Dropdown" sono submenu.</p><div id="mn">';
+      var h = '<h2>Menu</h2><div class="card"><div id="mn">';
+      /* Home = about.md (permalink '/'). Il tema al-folio la scrive a mano nel template header.liquid
+         come prima voce, FUORI dal ciclo ordinato per nav_order: quindi qui ha titolo modificabile
+         come le altre righe ma nessun campo ordine (non avrebbe effetto). */
+      if (home) {
+        h += '<div class="mrow" data-n="' + esc(home.name) + '" data-home="1"><input class="m_t" value="' + esc(home.title) + '"><span class="m_o" style="width:70px"></span>' +
+          '<span>' + esc(home.permalink) + '</span><span></span></div>';
+      }
       top.forEach(function (p, i) {
         h += '<div class="mrow" data-n="' + esc(p.name) + '"><input class="m_t" value="' + esc(p.title) + '"><input class="m_o" type="number" value="' + (p.order || (i + 1)) + '">' +
           '<span>' + (p.dropdown ? 'Dropdown' : esc(p.permalink)) + '</span><button class="btn sm danger" onclick="A.mnOff(\'' + esc(p.name) + '\')">Togli</button></div>';
@@ -152,7 +159,7 @@
       (function (r) {
         var n = r.getAttribute('data-n'), p = PG.filter(function (x) { return x.name === n; })[0], fm = p.fm;
         fm = A.fmSet(fm, 'title', A.yq(r.querySelector('.m_t').value.trim()));
-        fm = A.fmSet(fm, 'nav_order', r.querySelector('.m_o').value || '20');
+        if (!r.getAttribute('data-home')) fm = A.fmSet(fm, 'nav_order', r.querySelector('.m_o').value || '20');
         if (p.dropdown) {
           var box = document.querySelector('.sub[data-d="' + n + '"]'), ks = [];
           Array.prototype.forEach.call(box.querySelectorAll('.k'), function (k) {
