@@ -68,16 +68,60 @@
   A.pgEdit = function (name) {
     var p = PG.filter(function (x) { return x.name === name; })[0];
     curP = p || { name: '', sha: '', fm: 'layout: page\ntitle: \npermalink: /nuova/\nnav: false', body: '' };
+    /* LAYOUT "WORDPRESS": prima quello che si scrive (Titolo + Corpo con toolbar), poi le impostazioni.
+       Il front matter YAML NON sparisce: sta in <details> "Impostazioni avanzate" (chiuso), cosi' non
+       copre piu' il testo. pgSave() lo legge comunque per id (p_fm), quindi nulla cambia nel salvataggio.
+       Home (layout: about): 'subtitle' e le righe di 'profile.more_info' stanno nel YAML, NON nel corpo:
+       per questo prima non si trovavano. Qui li mostro come campi semplici (solo se layout e' about). */
+    var isAbout = A.fmGet(curP.fm, 'layout') === 'about';
+    var save = '<button class="btn primary" onclick="A.pgSave()">Salva e pubblica</button><button class="btn" onclick="A.go(\'pages\')">Annulla</button>';
     var h = '<h2>' + (p ? 'Modifica ' + esc(p.name) : 'Nuova pagina') + '</h2><div class="card">' +
+      '<p style="position:sticky;top:0;background:inherit;z-index:2;margin:0 0 10px">' + save + '</p>' +
       (p ? '' : '<label>Nome file (senza .md)</label><input id="p_name" placeholder="chi-siamo">') +
-      '<label>Front matter (YAML)</label><textarea id="p_fm" style="min-height:160px">' + esc(curP.fm) + '</textarea>' +
-      '<label>Corpo (Markdown)</label><textarea id="body">' + esc(curP.body) + '</textarea>' +
+      '<label>Titolo</label><input id="p_title" value="' + esc(A.fmGet(curP.fm, 'title')) + '">' +
+      (isAbout ? '<label>Sottotitolo (sotto il nome, accetta HTML)</label><input id="p_sub" value="' + esc(A.fmGet(curP.fm, 'subtitle')) + '">' +
+        '<label>Righe sotto la foto (una per riga, senza &lt;p&gt;)</label><textarea id="p_more" style="min-height:90px">' + esc(moreInfoGet(curP.fm)) + '</textarea>' : '') +
+      '<label>Corpo (Markdown)</label>' + pgToolbar() + '<textarea id="body" style="min-height:340px">' + esc(curP.body) + '</textarea>' +
       /* SEO sotto il Corpo (stesso ordine dell'editor articoli). Solo posizione: pgSave() li legge per id. */
       '<label>SEO Title (vuoto = usa il titolo)</label><input id="p_seot" value="' + esc(A.fmGet(curP.fm, 'seo_title')) + '">' +
       '<label>SEO Description (vuoto = estratto automatico del testo)</label><input id="p_seod" value="' + esc(A.fmGet(curP.fm, 'seo_description')) + '">' +
-      '<p><button class="btn primary" onclick="A.pgSave()">Salva e pubblica</button><button class="btn" onclick="A.go(\'pages\')">Annulla</button></p></div>';
+      '<details style="margin:14px 0"><summary style="cursor:pointer;font-weight:600">Impostazioni avanzate (front matter YAML)</summary>' +
+      '<p style="margin:6px 0"><small>Layout, permalink, menu, ecc. Se rompi il YAML la pagina sparisce dal sito senza errore visibile.</small></p>' +
+      '<textarea id="p_fm" style="min-height:200px">' + esc(curP.fm) + '</textarea></details>' +
+      '<p>' + save + '</p></div>';
     M().innerHTML = h;
   };
+  /* Toolbar delle pagine: stessa dei post (window.mdIns e' definita in admin-views.js e agisce su #body).
+     La duplico in piccolo qui per non dipendere dall'ordine di caricamento dei due file. */
+  function pgToolbar() {
+    return '<div class="tools">' +
+      '<button class="btn sm" onclick="mdIns(\'**\',\'**\')"><b>B</b></button>' +
+      '<button class="btn sm" onclick="mdIns(\'*\',\'*\')"><i>I</i></button>' +
+      '<button class="btn sm" onclick="mdIns(\'\\n## \',\'\')">H2</button>' +
+      '<button class="btn sm" onclick="mdIns(\'\\n- \',\'\')">Lista</button>' +
+      '<button class="btn sm" onclick="mdIns(\'[\',\'](https://)\')">Link</button>' +
+      '<button class="btn sm" onclick="mdIns(\'![\',\'](\' + A.baseurl() + \'/assets/img/)\')">Img</button></div>';
+  }
+  /* more_info: blocco YAML "folded" (">") con righe <p>...</p>, come in _pages/about.md. Lo mostro come
+     testo semplice (una riga = un paragrafo) e lo riscrivo identico. Non e' gestito da fmGet/fmSet
+     (valore multilinea, vedi commento in admin.js). Se il blocco non c'e' restituisce ''. */
+  function moreInfoGet(fm) {
+    var m = fm.match(/^([ \t]+)more_info:[ \t]*>[ \t]*\r?\n((?:\1[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m);
+    if (!m) return '';
+    return m[2].split(/\r?\n/).map(function (l) { return l.trim().replace(/^<p>/, '').replace(/<\/p>$/, ''); }).filter(Boolean).join('\n');
+  }
+  function moreInfoSet(fm, text) {
+    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var m = fm.match(/^([ \t]+)more_info:[ \t]*>[ \t]*\r?\n((?:\1[ \t]+.*\r?\n?|[ \t]*\r?\n)*)/m);
+    if (!m) return fm; /* niente blocco esistente: non invento struttura, lascio il YAML com'e' */
+    var ind = m[1] + '  ';
+    /* Il regex ingloba anche le righe vuote che seguono il blocco (separatore verso la chiave successiva,
+       es. selected_papers). Le rimetto identiche: trovato col collaudo su about.md reale, senza questo
+       ogni salvataggio toglieva la riga vuota anche a testo invariato. */
+    var tail = (m[2].match(/(?:\r?\n[ \t]*)*$/) || [''])[0].replace(/^\r?\n/, '');
+    var block = m[1] + 'more_info: >\n' + lines.map(function (l) { return ind + '<p>' + l + '</p>'; }).join('\n') + '\n' + tail;
+    return fm.replace(m[0], function () { return block; });
+  }
   /* A.pgSave: salva una pagina di _pages/. Il YAML puo' essere modificato a mano dall'utente: se lo rompe (indentazione, due punti non quotati) la pagina SPARISCE dal build, senza errore visibile. Le pagine hanno 'layout' e 'permalink' [DOC al-folio CUSTOMIZE.md: 'change the layout attribute ... and the path to access it by changing the permalink']. sha e' obbligatorio per aggiornare un file esistente (vedi putFile). Eliminare o rinominare permalink '/' rompe la home. */
   A.pgSave = A.wrap(function () {
     var name = curP.name || (($('p_name') || {}).value || '').trim();
@@ -87,6 +131,13 @@
        Vuoto = riga rimossa (il sito usa il fallback in _includes/metadata.liquid). yq() e' obbligatorio:
        un titolo SEO con ":" o virgolette romperebbe il YAML e la pagina sparirebbe dal build. */
     var pfm = $('p_fm').value;
+    /* Campi "semplici" sopra il Corpo -> riscritti nel YAML. Ordine: prima il YAML avanzato (come l'ha
+       lasciato l'utente), poi sovrascrivo solo i campi che ha toccato nei box semplici.
+       title/subtitle passano da yq() (un ':' li romperebbe). subtitle puo' contenere HTML (<a href=...>):
+       yq lo quota, e YAML lo rilegge identico. more_info e' un blocco multilinea: moreInfoSet(). */
+    if ($('p_title')) pfm = A.fmSet(pfm, 'title', A.yq($('p_title').value.trim()));
+    if ($('p_sub')) { var sv = $('p_sub').value.trim(); pfm = sv ? A.fmSet(pfm, 'subtitle', A.yq(sv)) : A.fmDel(pfm, 'subtitle'); }
+    if ($('p_more')) pfm = moreInfoSet(pfm, $('p_more').value);
     [['seo_title', 'p_seot'], ['seo_description', 'p_seod']].forEach(function (s) {
       var v = ($(s[1]).value || '').trim();
       pfm = v ? A.fmSet(pfm, s[0], A.yq(v)) : A.fmDel(pfm, s[0]);
