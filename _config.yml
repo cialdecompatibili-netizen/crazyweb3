@@ -137,7 +137,7 @@ bing_site_verification: # out your bing-site-verification ID (Bing Webmaster)
 # -----------------------------------------------------------------------------
 
 blog_name: al-folio # blog_name will be displayed in your blog page
-blog_description: a simple whitespace theme for academics
+blog_description: # descrizione opzionale del blog: se vuota non compare e non occupa spazio
 permalink: /blog/:year/:title/
 # --- DATE DEI POST: non toccare senza leggere admin/claude.md sez. 0c ---
 # Senza "timezone" Jekyll legge le date dei post nel fuso del server GitHub (UTC): un post scritto

@@ -20,7 +20,9 @@ pagination:
 
 {% comment %}
   ELENCO CATEGORIE del blog, in cima e il piu' compatto possibile (il lettore vuole subito le informazioni).
-  - Niente titolo/intestazione del blog (blog_name / blog_description in _config.yml non sono piu' usati qui).
+  - Niente titolo del blog (blog_name in _config.yml NON e' piu' usato in questa pagina).
+  - DESCRIZIONE OPZIONALE: se scrivi qualcosa in blog_description (_config.yml) compare in una riga piccola sopra le categorie;
+    se e' vuota (blank) non viene generato NESSUN elemento, quindi non occupa spazio. Oggi e' vuota.
   - Mostra SEMPRE TUTTE le categorie che esistono nei post (site.categories), in ordine alfabetico, ognuna con il
     numero di post, senza limite e senza taglio. Il link va all'archivio di jekyll-archives (/blog/category/nome/).
   - Per aggiungere una categoria basta usarla in un post: compare da sola. I tag NON sono in questa barra
@@ -33,9 +35,12 @@ pagination:
   .post > .tag-category-list { margin: 0 0 .4rem; line-height: 1.25; font-size: .85rem; text-align: center; }
   .post > .tag-category-list ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .35rem; list-style: none; padding: 0; margin: 0; }
   .post > .tag-category-list li { margin: 0; padding: 0; }
+  .post > .blog-desc { margin: 0 0 .25rem; line-height: 1.25; font-size: .85rem; text-align: center; color: var(--global-text-color-light); }
   .post .featured-posts .mb-4 { margin-bottom: .5rem !important; }
   .post > .tag-category-list li + li::before { content: "\00b7"; margin-right: .35rem; color: var(--global-text-color-light); }
 </style>
+{% assign blog_desc = site.blog_description | strip %}
+{% if blog_desc != "" %}<p class="blog-desc">{{ blog_desc }}</p>{% endif %}
 {% if site.categories.size > 0 %}
   <div class="tag-category-list">
     <ul>
