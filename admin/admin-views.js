@@ -71,6 +71,8 @@
     news: [['title', 'Titolo (solo se non inline)', 'text'], ['date', 'Data', 'date'], ['inline', 'Inline (true = solo riga in home)', 'text']].concat(SEO)
   };
   var LAYOUT = { posts: 'post', projects: 'page', news: 'post' };
+  /* campi mostrati SOTTO il Corpo nell'editor (vedi A.edit). Ordine = ordine in FIELDS. */
+  var BELOW = ['tags', 'seo_title', 'seo_description'];
   var cur = {};
 
   /* parse "YYYY-MM-DD HH:MM:SS[ +ZZZZ]" -> {d:'YYYY-MM-DD', t:'HH:MM', tz:'+ZZZZ'|''}
@@ -137,6 +139,11 @@
       var f = r[0]; cur = { key: key, name: name || '', sha: f ? f.sha : '', fm: f ? A.splitFM(f.text).fm : '', cats: r[1] };
       var body = f ? A.splitFM(f.text).body : '';
       var h = '<h2>' + (name ? 'Modifica ' + esc(name) : 'Nuovo in ' + C[key].label) + '</h2><div class="card">';
+      /* ORDINE nell'editor: i campi normali stanno SOPRA il Corpo, quelli in BELOW ('tags' + i due SEO)
+         stanno SOTTO, nell'ordine di FIELDS. Solo l'ordine visivo: save() legge ogni campo per id
+         ("f_<nome>"), quindi non dipende dalla posizione. Se aggiungi un campo da mettere sotto il
+         Corpo, aggiungilo a BELOW. */
+      var top = '', below = '';
       FIELDS[key].forEach(function (fd) {
         var v = f ? A.fmGet(cur.fm, fd[0]) : '';
         /* data iniziale di un nuovo elemento: A.now() = ora GitHub nel fuso del sito, SENZA offset.
@@ -145,11 +152,13 @@
         if (!f && fd[0] === 'date') v = A.now();
         if (!f && fd[0] === 'inline') v = 'true';
         if (!f && fd[0] === 'importance') v = '1';
-        if (fd[2] === 'cat') h += catField(fd, v);
-        else if (fd[2] === 'date') h += dateField(fd, v);
-        else h += '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
+        var one;
+        if (fd[2] === 'cat') one = catField(fd, v);
+        else if (fd[2] === 'date') one = dateField(fd, v);
+        else one = '<label>' + fd[1] + '</label><input id="f_' + fd[0] + '" value="' + esc(v) + '">';
+        if (BELOW.indexOf(fd[0]) >= 0) below += one; else top += one;
       });
-      h += '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea>' +
+      h += top + '<label>Corpo (Markdown)</label>' + toolbar() + '<textarea id="body">' + esc(body) + '</textarea>' + below +
         '<p><button class="btn primary" onclick="A.save()">Salva e pubblica</button><button class="btn" onclick="A.go(\'' + key + '\')">Annulla</button></p></div>';
       M().innerHTML = h;
     }).catch(function (e) { A.toast(A.errMsg(e), true); });
