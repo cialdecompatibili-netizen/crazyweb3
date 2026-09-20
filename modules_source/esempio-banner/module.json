@@ -1,0 +1,6 @@
+{
+  "name": "Banner di esempio",
+  "hooks": {
+    "footer": "footer.liquid"
+  }
+}

@@ -1,0 +1,7 @@
+{% comment %}
+  Modulo di esempio: mostra come si scrive un modulo per il sistema hook (vedi admin/claude.md sez. 11
+  e admin/admin-modules.js). Riceve include.slug, include.assets_url, include.data (da modules_hook.liquid).
+{% endcomment %}
+<div style="position:fixed;left:0;right:0;bottom:0;z-index:1;background:#2271b1;color:#fff;text-align:center;padding:6px;font-size:13px;">
+  Modulo di esempio attivo (slug: {{ include.slug }}) - installato dall'admin, sezione Moduli.
+</div>

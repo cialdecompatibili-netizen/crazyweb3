@@ -56,6 +56,77 @@ var A = (function () {
     return api('DELETE', '/contents/' + p, { message: 'admin: elimina ' + p, sha: sha, branch: BR }).then(function (r) { pollDeploy(); return r; });
   }
 
+  /* commitFiles(changes, message): UN SOLO commit con piu' file insieme (aggiunte, modifiche, cancellazioni).
+     Serve ai MODULI (admin-modules.js): installare/disinstallare un modulo tocca 5-30 file, e con putFile/
+     delFile sarebbero 5-30 commit = 5-30 build "Deploy site" in coda, e un'operazione a meta' se la rete cade.
+     Con un commit solo l'operazione e' ATOMICA: o entrano tutti i file o nessuno.
+       changes = [ {path:'a/b.md', text:'...'}   (testo UTF-8)
+                 | {path:'x.png', b64:'...'}     (contenuto gia' in base64, SENZA prefisso 'data:...;base64,')
+                 | {path:'old.md', del:true} ]   (cancella)
+     Sequenza (Git Data API) [DOC GitHub REST: docs.github.com/rest/git/refs, /commits, /blobs, /trees]:
+       1. GET  git/ref/heads/<branch>  -> sha del commit in cima
+       2. GET  git/commits/<sha>       -> sha dell'albero (tree) di quel commit
+       3. POST git/blobs   (uno per file) -> sha del contenuto
+       4. POST git/trees   {base_tree, tree:[...]} -> nuovo albero. base_tree = albero attuale: i file NON elencati restano
+          identici, quelli elencati vengono sovrascritti [DOC GitHub "Create a tree"].
+       5. POST git/commits {message, tree, parents:[sha]}
+       6. PATCH git/refs/heads/<branch> {sha, force:false}  -> il branch avanza al nuovo commit.
+     TRAPPOLE (tutte dalla doc "Create a tree", verificata):
+       - sha:null in una voce dell'albero CANCELLA il file, MA "returns an error if you try to delete a file that does not exist":
+         una cancellazione di un file gia' sparito farebbe fallire TUTTO il commit. Per questo le cancellazioni vengono filtrate
+         contro l'albero reale (listExisting) e i file assenti sono saltati in silenzio.
+       - force:false al punto 6 = solo avanzamento lineare: se nel frattempo qualcuno ha committato (altra scheda, altra sessione)
+         GitHub risponde 422 e NON sovrascrive niente; errMsg() lo mostra come "Conflitto: ricarica e riprova".
+       - le operazioni sono SEQUENZIALI apposta: la doc avverte che questi endpoint rispondono 422 se "spammati" con richieste parallele.
+       - il commit parte SOLO se cambia qualcosa: se dopo il filtro non resta nessuna voce, non crea commit e ritorna null.
+     Dopo il commit parte pollDeploy() (pallino verde/rosso), come putFile/delFile. Il commit va sul branch BR (quello di login).
+     I percorsi sono validati: niente '/' iniziale, niente '..', niente vuoti - protegge da uno zip malevolo o da un bug del chiamante. */
+  function commitFiles(changes, message) {
+    if (!changes || !changes.length) return Promise.resolve(null);
+    changes.forEach(function (c) {
+      if (!c.path || /^\//.test(c.path) || /(^|\/)\.\.(\/|$)/.test(c.path) || /\/\//.test(c.path)) throw new Error('Percorso non valido: ' + c.path);
+    });
+    var headSha, baseTree, entries = [];
+    /* listExisting: quali dei percorsi da cancellare esistono davvero. Un solo giro con l'albero ricorsivo; se GitHub risponde
+       "truncated" (repo enorme, oltre il limite della doc) si ripiega su un controllo per file con la Contents API (404 = assente). */
+    function listExisting(paths) {
+      var have = {};
+      return api('GET', '/git/trees/' + baseTree + '?recursive=1').then(function (t) {
+        if (!t.truncated) { (t.tree || []).forEach(function (n) { have[n.path] = true; }); return have; }
+        return paths.reduce(function (pr, p) {
+          return pr.then(function () {
+            return api('GET', '/contents/' + p.split('/').map(encodeURIComponent).join('/') + '?ref=' + BR)
+              .then(function () { have[p] = true; }, function (e) { if (e.status !== 404) throw e; });
+          });
+        }, Promise.resolve()).then(function () { return have; });
+      });
+    }
+    return api('GET', '/git/ref/heads/' + BR).then(function (ref) {
+      headSha = ref.object.sha; return api('GET', '/git/commits/' + headSha);
+    }).then(function (c) {
+      baseTree = c.tree.sha;
+      var dels = changes.filter(function (x) { return x.del; }).map(function (x) { return x.path; });
+      return dels.length ? listExisting(dels) : {};
+    }).then(function (have) {
+      return changes.reduce(function (pr, ch) {
+        return pr.then(function () {
+          if (ch.del) { if (have[ch.path]) entries.push({ path: ch.path, mode: '100644', type: 'blob', sha: null }); return; }
+          var b64 = ch.b64 != null ? ch.b64 : b64e(ch.text == null ? '' : ch.text);
+          return api('POST', '/git/blobs', { content: b64, encoding: 'base64' }).then(function (bl) {
+            entries.push({ path: ch.path, mode: '100644', type: 'blob', sha: bl.sha });
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      if (!entries.length) return null;
+      return api('POST', '/git/trees', { base_tree: baseTree, tree: entries }).then(function (t) {
+        return api('POST', '/git/commits', { message: message || 'admin: aggiornamento', tree: t.sha, parents: [headSha] });
+      }).then(function (nc) {
+        return api('PATCH', '/git/refs/heads/' + BR, { sha: nc.sha, force: false }).then(function () { pollDeploy(); return nc; });
+      });
+    });
+  }
+
   /* ---- front matter ----
      Jekyll legge il front matter YAML col parser Psych (Ruby). Fonti: jekyllrb.com/docs/front-matter,
      jekyllrb.com/docs/configuration/options (flag "future"), jekyllrb.com/docs/posts (tags/categories).
@@ -197,8 +268,13 @@ var A = (function () {
        dopo il caricamento), ma se in futuro serve BASEURL per costruire qualcosa a schermata gia'
        pronta, aspettare questa Promise invece di leggere A.baseurl() a freddo. */
     getFile('_config.yml').then(function (f) {
-      var m = f.text.match(/^baseurl:\s*(.*)$/m);
-      BASEURL = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+      /* baseurl: la riga in _config.yml ha un commento in coda ("baseurl: /crazyweb3 # the subpath...").
+         Va tolto, altrimenti BASEURL diventa "/crazyweb3 # the subpath of your site..." e ogni percorso
+         costruito con A.baseurl() (bottone Img, immagini) e' sbagliato. Trovato col test dal vivo col
+         token reale: i test sulle singole funzioni non lo vedevano. Stessa regola del timezone sotto:
+         il valore finisce al primo spazio o '#'. Un baseurl vuoto ("baseurl:" o "baseurl: ''") resta ''. */
+      var m = f.text.match(/^baseurl:[ \t]*([^\s#]*)/m);
+      BASEURL = m ? m[1].replace(/^["']|["']$/g, '') : '';
       /* timezone del sito: e' quello che Jekyll usa per leggere le date dei post (sez. 0c). L'admin
          deve scrivere l'ora nello STESSO fuso, altrimenti il post nasce sfasato. Il commento in coda
          alla riga ("timezone: Europe/Rome # ...") va tolto, altrimenti Intl lo rifiuta. */
@@ -210,7 +286,7 @@ var A = (function () {
     var s = $('side'), o = $('overlay'), on = f === undefined ? !s.classList.contains('open') : f;
     s.classList.toggle('open', on); o.classList.toggle('open', on);
   }
-  var titles = { dash: 'Bacheca', posts: 'Articoli', pages: 'Pagine', menu: 'Menu', projects: 'Progetti', news: 'News', media: 'Immagini', settings: 'Impostazioni' };
+  var titles = { dash: 'Bacheca', posts: 'Articoli', pages: 'Pagine', menu: 'Menu', projects: 'Progetti', news: 'News', media: 'Immagini', modules: 'Moduli', settings: 'Impostazioni' };
   function go(p) {
     var links = document.querySelectorAll('.side a[data-p]');
     for (var i = 0; i < links.length; i++) links[i].classList.toggle('on', links[i].getAttribute('data-p') === p);
@@ -229,8 +305,8 @@ var A = (function () {
 
   var views = {};
   var api_ = { $: $, esc: esc, toast: toast, getDir: getDir, getFile: getFile, putFile: putFile, delFile: delFile,
-    splitFM: splitFM, fmGet: fmGet, fmSet: fmSet, fmDel: fmDel, yq: yq, slugify: slugify, today: today, now: now,
-    wrap: wrap, views: views, go: go, main: function () { return main; }, errMsg: errMsg, api: api,
+    commitFiles: commitFiles, splitFM: splitFM, fmGet: fmGet, fmSet: fmSet, fmDel: fmDel, yq: yq, slugify: slugify,
+    today: today, now: now, wrap: wrap, views: views, go: go, main: function () { return main; }, errMsg: errMsg, api: api,
     baseurl: function () { return BASEURL; } };
 
   /*__MODULI__*/

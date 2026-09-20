@@ -6,6 +6,11 @@
                        automatico del testo (150 caratteri), poi la description del sito.
   NON usare "description" per la SEO: in al-folio e' anche il sottotitolo VISIBILE nella pagina.
   Le variabili seo_ttl / seo_desc sotto sono usate in <title>, meta description, OpenGraph, Twitter e schema.org.
+  SECONDA differenza dall'originale (in FONDO al file): aggancio moduli "head", una riga
+  (include di modules_hook.liquid con hook='head'). Funziona perche' head.liquid della gem include questo file
+  DENTRO <head> [DEDOTTO dalla gem al_folio_core-1.0.15, _includes/head.liquid riga 2 "include metadata.liquid";
+  NON documentato: se un aggiornamento della gem sposta o toglie quell'include, i moduli con hook "head" smettono
+  di caricare CSS/JS senza errori]. Vedi _includes/modules_hook.liquid e admin/claude.md sez. 11.
 {% endcomment %}
 {% assign seo_desc = page.seo_description %}
 {% if seo_desc == null or seo_desc == '' %}{% assign seo_desc = page.description %}{% endif %}
@@ -289,3 +294,6 @@
     }
   </script>
 {% endif %}
+
+{% comment %} MODULI: aggancio 'head' (CSS/JS dei moduli attivi). Vedi modules_hook.liquid. Se togli questa riga i moduli con hook head non caricano piu' nulla. {% endcomment %}
+{% include modules_hook.liquid hook='head' %}

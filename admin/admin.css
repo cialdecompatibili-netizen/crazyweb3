@@ -39,13 +39,15 @@ label{display:block;margin:10px 0 4px;font-weight:600;font-size:13px}
 .list .it small{color:#787c82;margin-left:6px}
 .tools{margin-bottom:6px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-.grid .im{background:#fff;border:1px solid #a7aaad;border-radius:4px;padding:6px;font-size:11px;word-break:break-all;text-align:center}
+.im{background:#fff;border:1px solid #a7aaad;border-radius:4px;padding:6px;font-size:11px;word-break:break-all;text-align:center}
 .grid img{width:100%;height:90px;object-fit:cover;border-radius:3px}
 .dot{width:12px;height:12px;border-radius:50%;background:#999;display:inline-block}
 .dot.ok{background:#00a32a}.dot.run{background:#dba617}.dot.ko{background:#d63638}
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1d2327;color:#fff;padding:10px 16px;border-radius:4px;display:none;z-index:99;max-width:90%}
 .overlay{display:none;position:fixed;inset:0;background:#0006;z-index:40}
 .mrow{display:grid;grid-template-columns:1fr 1fr 70px auto;gap:6px;align-items:center;margin-bottom:6px}
+.list .it small.ok{color:#00a32a;font-weight:600}
+.list .it small.ko{color:#8a8a8a}
 .sub{margin-left:20px;border-left:3px solid #8c8f94;padding-left:10px}
 @media(max-width:782px){
  .side{transform:translateX(-100%);transition:transform .2s;width:240px}
