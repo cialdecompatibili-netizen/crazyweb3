@@ -3,5 +3,6 @@ layout: page
 title: Home
 permalink: /#/
 nav: true
-nav_order: 20
+nav_order: 0
 ---
+
